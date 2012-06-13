@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SVORT", "SVORT\SVORT.vcxproj", "{48B2FC05-0CBA-4FC3-AB01-69868E079D42}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VolumeRenderer", "VolumeRenderer\VolumeRenderer.vcxproj", "{32A5991F-7EDA-4105-A341-72637FF5CBEE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{48B2FC05-0CBA-4FC3-AB01-69868E079D42}.Debug|Win32.ActiveCfg = Debug|Win32
+		{48B2FC05-0CBA-4FC3-AB01-69868E079D42}.Debug|Win32.Build.0 = Debug|Win32
+		{48B2FC05-0CBA-4FC3-AB01-69868E079D42}.Release|Win32.ActiveCfg = Release|Win32
+		{48B2FC05-0CBA-4FC3-AB01-69868E079D42}.Release|Win32.Build.0 = Release|Win32
+		{32A5991F-7EDA-4105-A341-72637FF5CBEE}.Debug|Win32.ActiveCfg = Debug|Win32
+		{32A5991F-7EDA-4105-A341-72637FF5CBEE}.Debug|Win32.Build.0 = Debug|Win32
+		{32A5991F-7EDA-4105-A341-72637FF5CBEE}.Release|Win32.ActiveCfg = Release|Win32
+		{32A5991F-7EDA-4105-A341-72637FF5CBEE}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
