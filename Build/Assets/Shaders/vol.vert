@@ -1,29 +1,33 @@
 #version 330
 
-layout(location = 0) in vec2 position;
-layout(location = 1) in vec2 texCoord;
+layout(location = 0) in vec3 position;
 
 uniform sampler3D volTex;
-uniform ivec3 size;
+uniform int sideLength;
 uniform mat4 World; 
-uniform mat4 View;
-uniform mat4 Projection;
+uniform mat4 viewProj;
 
 smooth out vec4 colour;
-
 
 void main()
 {
 	vec3 texCoord3D;
+	ivec3 size = ivec3(sideLength, sideLength, sideLength);
+	int num = gl_InstanceID;
+	//int num = 1;
+	texCoord3D.x = num % size.x;
+	texCoord3D.y = (num / size.x) % size.y;
+	texCoord3D.z = (num / (size.x * size.y));
 	
-	texCoord3D.x = gl_InstanceID % size.x;
-	texCoord3D.y = (gl_InstanceID / size.x) % size.y;
-	texCoord3D.z = (gl_InstanceID / (size.x * size.y));
+	texCoord3D /= size;
+	
 	
 	colour = texture(volTex, texCoord3D);
+	//colour = vec4(texCoord3D, 1.0);
+	//colour = vec4(1, 1, 1, 1);	
 	
-	texCoord3D /= size;	
+	vec4 vPos = vec4(vec3(texCoord3D + (position / size)), 0.1) * 10.0;
 	
-	gl_Position = World * View * Projection * vec4(texCoord3D, 1.0) + vec4(position.x, position.y, 0.0, 0.0);
+	gl_Position = viewProj *  vPos;
 	
 }
