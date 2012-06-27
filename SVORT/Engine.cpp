@@ -16,7 +16,7 @@
 #include "Utils.h"
 #include "StaticMesh.h"
 
-int voxelSize = 64;
+int voxelSize = 40;
 
 
 Engine::Engine(WindowSettings& w) : GLFWEngine(w),
@@ -67,7 +67,7 @@ void Engine::Init3DTexture()
 		float camDist = mesh->SubMeshes[0].Max[2] - mesh->SubMeshes[0].Min[2];
 		camDist /= 2.0f;
 
-		Mat4 ortho = Orthographic(mesh->SubMeshes[0].Min[0], mesh->SubMeshes[0].Max[0], mesh->SubMeshes[0].Min[1], mesh->SubMeshes[0].Max[1], zDist, zDist + (increment * 2.5f));
+		Mat4 ortho = Orthographic(mesh->SubMeshes[0].Min[0], mesh->SubMeshes[0].Max[0], mesh->SubMeshes[0].Min[1], mesh->SubMeshes[0].Max[1], zDist, zDist + (increment * 5.0f));
 
 		shaders["Basic"]->Use();
 		shaders["Basic"]->Uniforms["World"].SetValue(Mat4(vl_one));
@@ -100,6 +100,7 @@ void Engine::Init3DTexture()
 		glfwSwapBuffers();
 
 		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, data + (voxelSize * voxelSize * i));
+		glfwSleep(0.1);
 
 	}
 
@@ -130,6 +131,7 @@ void Engine::Setup()
 	camControl = new CameraController();
 	camControl->SetCamera(cam);
 	camControl->MaxSpeed = 0.4f;
+	cam->SetAspectRatio(800.0f / 600.0f);
 
 	volData = new VolumeData<unsigned int>(16, 16, 16);
 	volData->ZeroData();
@@ -219,7 +221,7 @@ void Engine::Display()
 	glDisable(GL_DEPTH_TEST);
 
 	if (drawQuad)
-		QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(0.0, 0.0));
+		QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(1.0, 1.0));
 
 	/* glBindTexture(GL_TEXTURE_2D, fbos["DVR"]->GetTextureID(0));
 	QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(0.0, 1.0));
