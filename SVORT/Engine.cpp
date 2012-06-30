@@ -16,8 +16,9 @@
 #include "Utils.h"
 #include "StaticMesh.h"
 
-int voxelSize = 40;
-
+int voxelSize = 32;
+int RTWidth = 80;
+int RTHeight = 120;
 
 Engine::Engine(WindowSettings& w) : GLFWEngine(w),
 	fbos(FBOManager::GetSingleton()),
@@ -57,7 +58,7 @@ void Engine::Init3DTexture()
 	for (int i = 0; i < voxelSize; ++i)
 	{
 
-		fbos["RayTrace"]->Bind();
+		fbos["Voxel"]->Bind();
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -80,7 +81,7 @@ void Engine::Init3DTexture()
 		glEnable(GL_DEPTH_TEST);
 		mesh->SubMeshes[0].Draw();
 
-		fbos["RayTrace"]->Unbind();
+		fbos["Voxel"]->Unbind();
 
 		shaders["Copy"]->Use();
 		shaders["Copy"]->Uniforms["baseTex"].SetValue(0);
@@ -88,7 +89,7 @@ void Engine::Init3DTexture()
 		glDisable(GL_DEPTH_TEST);
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, fbos["RayTrace"]->GetTextureID(0));
+		glBindTexture(GL_TEXTURE_2D, fbos["Voxel"]->GetTextureID(0));
 		QuadDrawer::DrawQuad(Vec2(-1.0f, -1.0f), Vec2(1.0f, 1.0f));
 
 		zDist += increment;
@@ -131,7 +132,7 @@ void Engine::Setup()
 	camControl = new CameraController();
 	camControl->SetCamera(cam);
 	camControl->MaxSpeed = 0.4f;
-	cam->SetAspectRatio(800.0f / 600.0f);
+	cam->SetAspectRatio(1.0f);
 
 	volData = new VolumeData<unsigned int>(16, 16, 16);
 	volData->ZeroData();
@@ -153,10 +154,13 @@ void Engine::Setup()
 	shaders.Add(new Shader("Assets/Shaders/testred.vert", "Assets/Shaders/testred.frag", "Testred"));
 	shaders.Add(new Shader("Assets/Shaders/copy3D.vert", "Assets/Shaders/copy3D.frag", "Copy3D"));
 	shaders.Add(new Shader("Assets/Shaders/basic.vert", "Assets/Shaders/basic.frag", "Basic"));
+	shaders.Add(new Shader("Assets/Shaders/SimpleRT.vert", "Assets/Shaders/SimpleRT.frag", "SimpleRT"));
 	shaders.CompileShaders();
 	fbos.AddFBO(new FrameBufferObject(Window.Width / 2, Window.Height, 24, 0, GL_RGBA, GL_TEXTURE_2D, "DVR"));
 	fbos["DVR"]->AttachTexture("colour");
-	fbos.AddFBO(new FrameBufferObject(voxelSize, voxelSize, 24, 0, GL_RGBA, GL_TEXTURE_2D, "RayTrace"));
+	fbos.AddFBO(new FrameBufferObject(voxelSize, voxelSize, 24, 0, GL_RGBA, GL_TEXTURE_2D, "Voxel"));
+	fbos["Voxel"]->AttachTexture("colour");
+	fbos.AddFBO(new FrameBufferObject(RTWidth, RTHeight, 0, 0, GL_RGBA, GL_TEXTURE_2D, "RayTrace"));
 	fbos["RayTrace"]->AttachTexture("colour");
 
 	mesh1 = new StaticMesh();
@@ -175,8 +179,23 @@ void Engine::Display()
 {
 
 	Mat4 world(16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f);
+	Mat4 invWorld = inv(world);
+	Mat4 I(vl_one);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	fbos["RayTrace"]->Bind();
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	shaders["SimpleRT"]->Use();
+	shaders["SimpleRT"]->Uniforms["baseTex"].SetValue(1);
+	shaders["SimpleRT"]->Uniforms["invWorld"].SetValue(invWorld);
+	shaders["SimpleRT"]->Uniforms["invView"].SetValue(cam->GetTransform());
+	shaders["SimpleRT"]->Uniforms["maxDist"].SetValue(1000.0f);
+
+	QuadDrawer::DrawQuad(Vec2(-1.0f, -1.0f), Vec2(1.0f, 1.0f));
+
+	fbos["RayTrace"]->Unbind();
 
 	fbos["DVR"]->Bind();
 
@@ -185,7 +204,7 @@ void Engine::Display()
 	DrawCoordFrame(cam->GetViewTransform() * cam->GetProjectionMatrix());
 
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_3D, tex3D);
+	glBindTexture(GL_TEXTURE_3D, tex3D);	
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -204,12 +223,23 @@ void Engine::Display()
 
 	fbos["DVR"]->Unbind();   
 
+	glDisable(GL_DEPTH_TEST);
+
+	//Draw DVR version
+
 	shaders["Copy"]->Use();
 	shaders["Copy"]->Uniforms["baseTex"].SetValue(0);
 	glActiveTexture(GL_TEXTURE0);
 
 	glBindTexture(GL_TEXTURE_2D, fbos["DVR"]->GetTextureID(0));
-	QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(1.0, 1.0));
+	QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(0.0, 1.0));
+
+	//Draw RayTraced
+
+	glBindTexture(GL_TEXTURE_2D, fbos["RayTrace"]->GetTextureID(0));
+	QuadDrawer::DrawQuad(Vec2(0.0, -1.0), Vec2(1.0, 1.0));
+
+	//Draw 3d Texture:
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_3D, tex3D);
@@ -218,7 +248,7 @@ void Engine::Display()
 	shaders["Copy3D"]->Uniforms["baseTex"].SetValue(1);
 	shaders["Copy3D"]->Uniforms["zCoord"].SetValue(zCoord);
 
-	glDisable(GL_DEPTH_TEST);
+		
 
 	if (drawQuad)
 		QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(1.0, 1.0));
@@ -230,7 +260,7 @@ void Engine::Display()
 	shaders["Copy"]->Uniforms["baseTex"].SetValue(0);
 	glActiveTexture(GL_TEXTURE0);
 
-	glBindTexture(GL_TEXTURE_2D, fbos["RayTrace"]->GetTextureID(0));
+	glBindTexture(GL_TEXTURE_2D, fbos["Voxel"]->GetTextureID(0));
 
 	*/
 
