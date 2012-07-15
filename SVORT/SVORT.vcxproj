@@ -43,13 +43,13 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>C:\stuff\boost_1_49_0;C:\stuff\boost_1_48_0;C:\Users\Owen\Documents\Visual Studio 2010\Projects\UtilTest\GLUtils;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(AMDAPPSDKROOT)\include;C:\stuff\boost_1_49_0;C:\stuff\boost_1_48_0;C:\Users\Owen\Documents\Visual Studio 2010\Projects\UtilTest\GLUtils;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <CompileAsManaged>false</CompileAsManaged>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Users\Owen\Documents\Visual Studio 2010\Projects\UtilTest\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>GLFW_d.lib;opengl32.lib;glew32.lib;svl_debug.lib;GLUtils_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\Owen\Documents\Visual Studio 2010\Projects\UtilTest\Debug;$(AMDAPPSDKROOT)\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>GLFW_d.lib;opengl32.lib;glew32.lib;svl_debug.lib;GLUtils_d.lib;OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -71,12 +71,14 @@
     <ClCompile Include="Engine.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Utils.cpp" />
+    <ClCompile Include="VoxelOctree.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CubeDrawer.h" />
     <ClInclude Include="Engine.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="VolumeData.h" />
+    <ClInclude Include="VoxelOctree.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

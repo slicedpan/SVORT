@@ -5,12 +5,13 @@ uniform sampler3D baseTex;
 uniform mat4 invWorld;
 uniform mat4 invView;
 uniform float maxDist;
-
+uniform vec3 sphereCentre;
 out vec4 finalColour;
+uniform float screenDist = 10.0;
 
 /*
 
-bool intersectSphere(vec3 origin, vec3 dir, vec3 sphereCentre, float radius)
+bool intersectSphere(vec3 origin, vec3 dir, float radius)
 {
 	vec3 dist = sphereCentre - origin;
 	float B = dot(dir,dist);
@@ -30,7 +31,7 @@ bool intersectSphere(vec3 origin, vec3 dir, vec3 sphereCentre, float radius)
 }
 */
 
-bool intersectSphere(vec3 origin, vec3 dir, vec3 sphereCentre, float radius)
+bool intersectSphere(vec3 origin, vec3 dir, float radius)
 {
 	vec3 endPoint = origin + (maxDist * dir);
 	float dist = length(endPoint - origin);
@@ -52,9 +53,9 @@ void main()
 {
 	mat4 transform = invView * invWorld;
 	vec3 rayOrigin = (transform * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-	vec3 rayDir = (transform * normalize(vec4(fragTexCoord.x, fragTexCoord.y, -10.0, 0.0))).xyz;
+	vec3 rayDir = (transform * normalize(vec4(fragTexCoord.x, fragTexCoord.y, -screenDist, 0.0))).xyz;
 	
-	if (intersectSphere(rayOrigin, rayDir, vec3(0.0), 1.0f))
+	if (intersectSphere(rayOrigin, rayDir, 1.0f))
 	{
 		finalColour = vec4(1.0, 0.0, 0.0, 1.0);
 	}

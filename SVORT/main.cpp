@@ -4,8 +4,8 @@
 int main(int argc, char** argv)
 {
 	WindowSettings w;
-	w.Width = 1200;
-	w.Height = 600;
+	w.Width = 1024;
+	w.Height = 768;
 	//w.Fullscreen = true;
 	w.Title = "SVO Ray Tracer";
 	Engine engine(w);
