@@ -21,7 +21,13 @@
 #include <Windows.h>
 #endif
 
-int voxelSize = 256;
+struct _vs
+{
+	int x;
+	int y;
+	int z;
+} voxelSize;
+
 int RTWidth = 1024;
 int RTHeight = 768;
 
@@ -46,14 +52,14 @@ void Engine::Init3DTexture()
 	if (!drawMesh1)
 		mesh = mesh2;  	
 
-	int imageSize = voxelSize * voxelSize * sizeof(unsigned int);
-	unsigned int* data = (unsigned int*)malloc(imageSize * voxelSize);
+	int imageSize = voxelSize.x * voxelSize.y * sizeof(unsigned int);
+	unsigned int* data = (unsigned int*)malloc(imageSize * voxelSize.z);
 
 	float zDist = mesh->SubMeshes[0].Max[2] - mesh->SubMeshes[0].Min[2];
-	float increment = zDist / voxelSize;
+	float increment = zDist / voxelSize.z;
 	zDist = - increment;
 
-	for (int i = 0; i < voxelSize; ++i)
+	for (int i = 0; i < voxelSize.z; ++i)
 	{
 
 		fbos["Voxel"]->Bind();
@@ -93,27 +99,31 @@ void Engine::Init3DTexture()
 		zDist += increment;
 
 		boost::format fmter("Done: %1% / %2%");
-		fmter % (i + 1) % voxelSize;
+		fmter % (i + 1) % voxelSize.z;
 	  
 		glfwSetWindowTitle(fmter.str().c_str());
 		glfwSwapBuffers();
 
-		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, data + (voxelSize * voxelSize * i));
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, data + (voxelSize.x * voxelSize.y * i));
 		//glfwSleep(0.1); This is so that the process is visible
 
 	}
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_3D, tex3D);
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA, voxelSize, voxelSize, voxelSize, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA, voxelSize.x, voxelSize.y, voxelSize.z, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
 	vo = new VoxelOctree();
-	vo->Load(data, voxelSize, voxelSize, voxelSize);
+	vo->Load(data, voxelSize.x, voxelSize.y, voxelSize.z);
 	free(data);
 }
 
 void Engine::Setup()
 {
+
+	voxelSize.x = 256;
+	voxelSize.y = 256;
+	voxelSize.z = 256;
 	
 	glGenTextures(1, &tex3D);
 	
@@ -146,7 +156,7 @@ void Engine::Setup()
 
 	fbos.AddFBO(new FrameBufferObject(Window.Width / 2, Window.Height, 24, 0, GL_RGBA, GL_TEXTURE_2D, "DVR"));
 	fbos["DVR"]->AttachTexture("colour");
-	fbos.AddFBO(new FrameBufferObject(voxelSize, voxelSize, 24, 0, GL_RGBA, GL_TEXTURE_2D, "Voxel"));
+	fbos.AddFBO(new FrameBufferObject(voxelSize.x, voxelSize.y, 24, 0, GL_RGBA, GL_TEXTURE_2D, "Voxel"));
 	fbos["Voxel"]->AttachTexture("colour");
 	fbos.AddFBO(new FrameBufferObject(RTWidth, RTHeight, 0, 0, GL_RGBA, GL_TEXTURE_2D, "RayTrace"));
 	fbos["RayTrace"]->AttachTexture("colour", GL_LINEAR, GL_LINEAR);
@@ -166,6 +176,107 @@ void Engine::Setup()
 	Init3DTexture();
 	SetupOpenCL();
 
+}
+
+void Engine::CreateRTKernel()
+{
+
+	cl_int resultCL;
+
+	const char* source = getSourceFromFile("Assets/CL/RT.cl");
+	if (source)
+	{
+		ocl.rtProgram = clCreateProgramWithSource(ocl.context, 1, &source, NULL, &resultCL);
+	}
+	else
+	{	
+		printf("Could not open program file!\n");
+		CLGLError(resultCL);
+		printf("\n");
+		return;
+	}	
+	if (resultCL != CL_SUCCESS)
+	{
+		printf("Error loading program!\n");
+		CLGLError(resultCL);
+		printf("\n");
+	}
+	else
+		printf("OpenCL program loaded.\n");
+
+	resultCL = clBuildProgram(ocl.rtProgram, ocl.deviceNum, ocl.devices, "", NULL, NULL);
+	if (resultCL != CL_SUCCESS)
+	{
+		printf("Error building program: ");
+		CLGLError(resultCL);
+
+		size_t length;
+        resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
+                                        ocl.devices[0], 
+                                        CL_PROGRAM_BUILD_LOG, 
+                                        0, 
+                                        NULL, 
+                                        &length);
+        if(resultCL != CL_SUCCESS) 
+            printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
+
+		char* buffer = (char*)malloc(length);
+        resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
+                                        ocl.devices[0], 
+                                        CL_PROGRAM_BUILD_LOG, 
+                                        length, 
+                                        buffer, 
+                                        NULL);
+        if(resultCL != CL_SUCCESS) 
+            printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
+		else
+			printf("%s\n", buffer);
+	}
+	else
+	{
+		printf("Program built successfully.\n");
+	}
+
+	size_t length;
+    resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
+                                    ocl.devices[0], 
+                                    CL_PROGRAM_BUILD_LOG, 
+                                    0, 
+                                    NULL, 
+                                    &length);
+    if(resultCL != CL_SUCCESS) 
+        printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
+
+	char* buffer = (char*)malloc(length);
+    resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
+                                    ocl.devices[0], 
+                                    CL_PROGRAM_BUILD_LOG, 
+                                    length, 
+                                    buffer, 
+                                    NULL);
+    if(resultCL != CL_SUCCESS) 
+        printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
+	else
+		printf("%s\n", buffer);
+
+	ocl.rtKernel = clCreateKernel(ocl.rtProgram, "VolRT", &resultCL);
+
+	if (resultCL != CL_SUCCESS)
+	{
+		printf("Error creating kernel: ");
+		CLGLError(resultCL);
+		printf("\n");
+	}
+	else
+	{
+		printf("Kernel created successfully.\n");
+		ocl.paramBuffer = clCreateBuffer(ocl.context, CL_MEM_READ_ONLY, sizeof(RTParams), NULL, &resultCL);
+		if (resultCL != CL_SUCCESS)
+			printf("Error allocating params buffer!\n");
+		clSetKernelArg(ocl.rtKernel, 0, sizeof(cl_mem), &ocl.output);
+		clSetKernelArg(ocl.rtKernel, 1, sizeof(cl_mem), &ocl.input);
+		clSetKernelArg(ocl.rtKernel, 2, sizeof(cl_mem), &ocl.paramBuffer);
+	}
 }
 
 void Engine::SetupOpenCL()
@@ -229,6 +340,15 @@ void Engine::SetupOpenCL()
 			sprintf(typeStr, "CL_DEVICE_TYPE_ACCELERATOR");
 		iMem = (unsigned int)(memSize / 1024);
 		printf("Device %d:\n%s\nType: %s\nMemory : %d KB\n\n", i, nameBuf, typeStr, iMem);
+
+		int maxArgs;
+
+		clGetDeviceInfo(ocl.devices[i], CL_DEVICE_MAX_CONSTANT_ARGS, sizeof(int), &maxArgs, NULL);
+		printf("Max constant args: %d\n", maxArgs);
+		clGetDeviceInfo(ocl.devices[i], CL_DEVICE_MAX_PARAMETER_SIZE, sizeof(int), &maxArgs, NULL);
+		printf("Max argument size: %dB\n", maxArgs);
+
+
 	}
 
 #ifdef _WIN32
@@ -279,78 +399,32 @@ void Engine::SetupOpenCL()
 
 #pragma endregion
 	
-	const char* source = getSourceFromFile("Assets/CL/RT.cl");
-	if (source)
-	{
-		ocl.rtProgram = clCreateProgramWithSource(ocl.context, 1, &source, NULL, &resultCL);
-	}
-	else
-	{	
-		printf("Could not open program file!\n");
-		return;
-	}	
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error loading program!\n");
-	}
-	else
-		printf("OpenCL program loaded.\n");
-
-	resultCL = clBuildProgram(ocl.rtProgram, ocl.deviceNum, ocl.devices, "", NULL, NULL);
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error building program: ");
-		CLGLError(resultCL);
-
-		size_t length;
-        resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
-                                        ocl.devices[0], 
-                                        CL_PROGRAM_BUILD_LOG, 
-                                        0, 
-                                        NULL, 
-                                        &length);
-        if(resultCL != CL_SUCCESS) 
-            printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-
-		char* buffer = (char*)malloc(length);
-        resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
-                                        ocl.devices[0], 
-                                        CL_PROGRAM_BUILD_LOG, 
-                                        length, 
-                                        buffer, 
-                                        NULL);
-        if(resultCL != CL_SUCCESS) 
-            printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-		else
-			printf("%s\n");
-	}
-	else
-		printf("Program built successfully.\n");
-
-	ocl.rtKernel = clCreateKernel(ocl.rtProgram, "VolRT", &resultCL);
-
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error creating kernel: ");
-		CLGLError(resultCL);
-		printf("\n");
-	}
-	else
-		printf("Kernel created successfully.\n");
-
-	clSetKernelArg(ocl.rtKernel, 0, sizeof(cl_mem), &ocl.output);
-	clSetKernelArg(ocl.rtKernel, 1, sizeof(cl_mem), &ocl.input);
+	CreateRTKernel();
+	
 }
 
 void Engine::UpdateCL()
 {
-	clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
-	clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.input, 0, NULL, NULL);
-	size_t globalWorkSize[] = { 1024, 768 };
-	int Z = (int)(voxelSize * zCoord);
-	clSetKernelArg(ocl.rtKernel, 2, sizeof(int), &Z);
-	clEnqueueNDRangeKernel(ocl.queue, ocl.rtKernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL);
-	clFinish(ocl.queue);
+	if (ocl.rtKernel)
+	{
+		Mat4 world(16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f);
+		Mat4 invWorldView = inv(world) * cam->GetTransform();
+
+		memcpy(&RTParams.sizeX, &voxelSize.x, sizeof(int) * 3);
+		memcpy(RTParams.invWorldView, invWorldView.Ref(), sizeof(float) * 16);
+		RTParams.invSize[0] = 1.0 / voxelSize.x;
+		RTParams.invSize[1] = 1.0 / voxelSize.y;
+		RTParams.invSize[2] = 1.0 / voxelSize.z;
+
+		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.input, 0, NULL, NULL);
+		size_t globalWorkSize[] = { Window.Width, Window.Height };
+		
+		clEnqueueWriteBuffer(ocl.queue, ocl.paramBuffer, true, 0, sizeof(RTParams), &RTParams, 0, NULL, NULL);
+
+		clEnqueueNDRangeKernel(ocl.queue, ocl.rtKernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL);
+		clFinish(ocl.queue);
+	}
 }
 
 void Engine::Display()
@@ -362,22 +436,22 @@ void Engine::Display()
 
 #pragma region RayTracer
 
+	fbos["RayTrace"]->Bind();
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 	if (!clDraw)
 	{
-		fbos["RayTrace"]->Bind();
-
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		
 		
 		Shader* currentRT = shaders["VolRT"];
 		currentRT->Use();	
 		currentRT->Uniforms["baseTex"].SetValue(1);
-		currentRT->Uniforms["invWorld"].SetValue(invWorld);
-		currentRT->Uniforms["invView"].SetValue(cam->GetTransform());
+		currentRT->Uniforms["invWorldView"].SetValue(invWorld * cam->GetTransform());
 		currentRT->Uniforms["maxDist"].SetValue(1000.0f);
 		currentRT->Uniforms["sphereCentre"].SetValue(Vec3(vl_zero));
 		currentRT->Uniforms["screenDist"].SetValue(zCoord);
-		currentRT->Uniforms["size"].SetValue(voxelSize, voxelSize, voxelSize);
-
+		currentRT->Uniforms["size"].SetValue(voxelSize.x, voxelSize.y, voxelSize.z);
 	
 		QuadDrawer::DrawQuad(Vec2(-1.0f, -1.0f), Vec2(1.0f, 1.0f));
 
@@ -385,7 +459,10 @@ void Engine::Display()
 	}
 
 	if (clDraw)
+	{
+		fbos["RayTrace"]->Unbind();
 		UpdateCL();
+	}
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -408,12 +485,11 @@ void Engine::Display()
 	shaders["DVR"]->Uniforms["volTex"].SetValue(1); 
 	shaders["DVR"]->Uniforms["World"].SetValue(Mat4(vl_zero));
 	shaders["DVR"]->Uniforms["viewProj"].SetValue(cam->GetViewTransform() * cam->GetProjectionMatrix());
-	shaders["DVR"]->Uniforms["sideLength"].SetValue(voxelSize);
-	shaders["DVR"]->Uniforms["size"].SetValue(voxelSize, voxelSize, voxelSize);
+	shaders["DVR"]->Uniforms["size"].SetValue(voxelSize.x, voxelSize.y, voxelSize.z);
 
 	
 	if (shaders["DVR"]->Compiled && drawVol)
-		CubeDrawer::DrawCubes(voxelSize * voxelSize * voxelSize);
+		CubeDrawer::DrawCubes(voxelSize.x * voxelSize.y * voxelSize.z);
 
 	/*shaders["Testred"]->Use();
 
@@ -493,7 +569,10 @@ void Engine::KeyPressed(int code)
 	if (code == GLFW_KEY_ESC)
 		Exit();
 	if (code == 'R')
+	{
 		shaders.ReloadShaders();
+		CreateRTKernel();
+	}
 	if (code == 'V')
 		drawQuad = !drawQuad;
 	if (code == 'Z')

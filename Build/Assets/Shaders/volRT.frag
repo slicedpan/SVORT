@@ -2,8 +2,7 @@
 
 smooth in vec2 fragTexCoord;
 uniform sampler3D baseTex;
-uniform mat4 invWorld;
-uniform mat4 invView;
+uniform mat4 invWorldView;
 uniform float maxDist;
 uniform vec3 sphereCentre;
 uniform ivec3 size;
@@ -91,7 +90,7 @@ bool intersectCube(ray r, float t0, float t1)
 
 void main()
 {
-	mat4 transform = invView * invWorld;
+	mat4 transform = invWorldView;
 	ray r;
 	r.origin = (transform * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
 	r.direction = (transform * normalize(vec4(fragTexCoord.x, fragTexCoord.y, -screenDist, 0.0))).xyz;
@@ -119,7 +118,7 @@ void main()
 			}
 			if(tMax.x < tMax.z) 
 			{
-				if(tMax.x < tMax.z) 
+				if(tMax.x < tMax.y) 
 				{
 					cur.x = cur.x + stepsize.x;
 					if(cur.x == maxCoord.x)
@@ -128,10 +127,10 @@ void main()
 				} 
 				else 
 				{
-					cur.z = cur.z + stepsize.z;
-					if(cur.z == size.z)
+					cur.y = cur.y + stepsize.y;
+					if(cur.y == maxCoord.y)
 						break;
-					tMax.z = tMax.z + tDelta.z;
+					tMax.y = tMax.y + tDelta.y;
 				}
 			} 
 			else 

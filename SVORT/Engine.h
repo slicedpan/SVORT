@@ -11,6 +11,8 @@ class FBOManager;
 class StaticMesh;
 class VoxelOctree;
 
+
+
 class Engine : public GLFWEngine
 {
 public:
@@ -27,6 +29,7 @@ private:
    FBOManager& fbos;
    void Init3DTexture();   
    void UpdateCL();
+   void CreateRTKernel();
    unsigned int tex3D;
    Camera* cam;
    CameraController* camControl;
@@ -38,16 +41,25 @@ private:
    bool drawVol;
    VoxelOctree* vo;
    bool clDraw;
-   struct
-   {
-	   cl_context context;
-	   cl_device_id* devices;
-	   cl_uint deviceNum;
-	   cl_mem output;
-	   cl_mem input;
-	   cl_command_queue queue;
-	   cl_program rtProgram;
-	   cl_kernel rtKernel;
-   } ocl;
+	struct
+	{
+		cl_context context;
+		cl_device_id* devices;
+		cl_uint deviceNum;
+		cl_mem output;
+		cl_mem input;
+		cl_command_queue queue;
+		cl_program rtProgram;
+		cl_kernel rtKernel;
+		cl_mem paramBuffer;
+	} ocl;
+	struct
+	{
+		float invWorldView[16];
+		int sizeX;
+		int sizeY; 
+		int sizeZ;
+		float invSize[3];
+	} RTParams;
 };
 

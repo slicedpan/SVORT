@@ -3,10 +3,8 @@
 layout(location = 0) in vec3 position;
 
 uniform sampler3D volTex;
-uniform int sideLength;
 uniform mat4 World; 
 uniform mat4 viewProj;
-
 uniform ivec3 size;
 
 smooth out vec4 colour;
