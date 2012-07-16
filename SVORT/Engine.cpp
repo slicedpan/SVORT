@@ -15,10 +15,7 @@
 #include <boost\format.hpp>
 #include "Utils.h"
 #include "StaticMesh.h"
-<<<<<<< HEAD
-=======
 #include "VoxelOctree.h"
->>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 #include "CL\cl_gl.h"
 #ifdef _WIN32
 #include <Windows.h>
@@ -47,7 +44,6 @@ Engine::~Engine(void)
 	delete cam;	
 	if (ocl.devices)
 		free(ocl.devices);
-<<<<<<< HEAD
 	CleanupCL();
 }
 
@@ -67,8 +63,6 @@ void Engine::CleanupCL()
 		clReleaseCommandQueue(ocl.queue);
 	if (ocl.context)
 		clReleaseContext(ocl.context);
-=======
->>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 }
 
 void Engine::Init3DTexture()
@@ -137,17 +131,14 @@ void Engine::Init3DTexture()
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_3D, tex3D);
 	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA, voxelSize.x, voxelSize.y, voxelSize.z, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-<<<<<<< HEAD
+
 	//glGenerateMipmap(GL_TEXTURE_3D);	
 
 	glFinish();	
-
-=======
-
 	vo = new VoxelOctree();
 	vo->Load(data, voxelSize.x, voxelSize.y, voxelSize.z);
 	free(data);
->>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
+
 }
 
 void Engine::Setup()
@@ -165,12 +156,9 @@ void Engine::Setup()
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);   	
 
 	drawVol = false;
-
-<<<<<<< HEAD
 	memset(&ocl, 0, sizeof(ocl));
-=======
+
 	ocl.devices = NULL;
->>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 
 	cam = new Camera();
 	cam->Position[2] += 20.0f;
@@ -208,8 +196,6 @@ void Engine::Setup()
 	drawMesh1 = true;
 	
 	zCoord = 1.0f; 
-<<<<<<< HEAD
-
 	Init3DTexture();	
 	SetupOpenCL();
 }
@@ -218,11 +204,6 @@ void Engine::CreateRTKernel()
 {
 
 	cl_int resultCL;
-=======
-
-	Init3DTexture();
-	SetupOpenCL();
->>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 
 	if (ocl.rtKernel)
 	{
@@ -479,255 +460,6 @@ void Engine::UpdateCL()
 	}
 }
 
-void Engine::CreateRTKernel()
-{
-
-	cl_int resultCL;
-
-	const char* source = getSourceFromFile("Assets/CL/RT.cl");
-	if (source)
-	{
-		ocl.rtProgram = clCreateProgramWithSource(ocl.context, 1, &source, NULL, &resultCL);
-	}
-	else
-	{	
-		printf("Could not open program file!\n");
-		CLGLError(resultCL);
-		printf("\n");
-		return;
-	}	
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error loading program!\n");
-		CLGLError(resultCL);
-		printf("\n");
-	}
-	else
-		printf("OpenCL program loaded.\n");
-
-	resultCL = clBuildProgram(ocl.rtProgram, ocl.deviceNum, ocl.devices, "", NULL, NULL);
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error building program: ");
-		CLGLError(resultCL);
-
-		size_t length;
-        resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
-                                        ocl.devices[0], 
-                                        CL_PROGRAM_BUILD_LOG, 
-                                        0, 
-                                        NULL, 
-                                        &length);
-        if(resultCL != CL_SUCCESS) 
-            printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-
-		char* buffer = (char*)malloc(length);
-        resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
-                                        ocl.devices[0], 
-                                        CL_PROGRAM_BUILD_LOG, 
-                                        length, 
-                                        buffer, 
-                                        NULL);
-        if(resultCL != CL_SUCCESS) 
-            printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-		else
-			printf("%s\n", buffer);
-	}
-	else
-	{
-		printf("Program built successfully.\n");
-	}
-
-	size_t length;
-    resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
-                                    ocl.devices[0], 
-                                    CL_PROGRAM_BUILD_LOG, 
-                                    0, 
-                                    NULL, 
-                                    &length);
-    if(resultCL != CL_SUCCESS) 
-        printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-
-	char* buffer = (char*)malloc(length);
-    resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
-                                    ocl.devices[0], 
-                                    CL_PROGRAM_BUILD_LOG, 
-                                    length, 
-                                    buffer, 
-                                    NULL);
-    if(resultCL != CL_SUCCESS) 
-        printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-	else
-		printf("%s\n", buffer);
-
-	ocl.rtKernel = clCreateKernel(ocl.rtProgram, "VolRT", &resultCL);
-
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error creating kernel: ");
-		CLGLError(resultCL);
-		printf("\n");
-	}
-	else
-	{
-		printf("Kernel created successfully.\n");
-		ocl.paramBuffer = clCreateBuffer(ocl.context, CL_MEM_READ_ONLY, sizeof(RTParams), NULL, &resultCL);
-		if (resultCL != CL_SUCCESS)
-			printf("Error allocating params buffer!\n");
-		clSetKernelArg(ocl.rtKernel, 0, sizeof(cl_mem), &ocl.output);
-		clSetKernelArg(ocl.rtKernel, 1, sizeof(cl_mem), &ocl.input);
-		clSetKernelArg(ocl.rtKernel, 2, sizeof(cl_mem), &ocl.paramBuffer);
-	}
-}
-
-void Engine::SetupOpenCL()
-{
-
-	cl_int resultCL;
-
-#pragma region CLSetup	
-
-	cl_uint numPlatforms;
-	cl_platform_id targetPlatform = NULL;
-
-	resultCL = clGetPlatformIDs(0, NULL, &numPlatforms);
-
-	cl_platform_id* allPlatforms = (cl_platform_id*) malloc(numPlatforms * sizeof(cl_platform_id));
-
-	resultCL = clGetPlatformIDs(numPlatforms, allPlatforms, NULL);
-    if (resultCL != CL_SUCCESS)
-        throw (std::string("InitCL()::Error: Getting platform ids (clGetPlatformIDs)"));
-
-	targetPlatform = allPlatforms[0];
-
-    char pbuff[128];
-
-	clGetPlatformInfo(targetPlatform, CL_PLATFORM_NAME, sizeof(pbuff), pbuff, NULL);
-
-	printf("\n\nUsing platform:\n%s\n", pbuff);
-
-    resultCL = clGetPlatformInfo(targetPlatform, CL_PLATFORM_VENDOR, sizeof(pbuff), pbuff, NULL);
-
-	printf("Vendor: %s\n\n\n", pbuff);		
-
-    if (resultCL != CL_SUCCESS)
-        throw (std::string("InitCL()::Error: Getting platform info (clGetPlatformInfo)"));    
-
-	
-	ocl.devices = (cl_device_id*)malloc(sizeof(cl_device_id) * 16);	
-	resultCL = clGetDeviceIDs(targetPlatform, CL_DEVICE_TYPE_GPU, 16, ocl.devices, &(ocl.deviceNum));
-
-	printf("\n");
-
-
-	for (int i = 0; i < ocl.deviceNum; ++i)
-	{
-		cl_device_type type;
-		char nameBuf[256];
-		cl_ulong memSize;
-		int iMem;
-
-		clGetDeviceInfo(ocl.devices[i], CL_DEVICE_NAME, sizeof(nameBuf), nameBuf, NULL);
-		clGetDeviceInfo(ocl.devices[i], CL_DEVICE_TYPE, sizeof(cl_device_type), &type, NULL);
-		clGetDeviceInfo(ocl.devices[i], CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &memSize, NULL);
-		char typeStr[32];
-		if (type & CL_DEVICE_TYPE_CPU)
-			sprintf(typeStr, "CL_DEVICE_TYPE_CPU");
-		if (type & CL_DEVICE_TYPE_GPU)	//we just want GPU(s)
-		{			
-			sprintf(typeStr, "CL_DEVICE_TYPE_GPU");
-		}
-		if (type & CL_DEVICE_TYPE_ACCELERATOR)
-			sprintf(typeStr, "CL_DEVICE_TYPE_ACCELERATOR");
-		iMem = (unsigned int)(memSize / 1024);
-		printf("Device %d:\n%s\nType: %s\nMemory : %d KB\n\n", i, nameBuf, typeStr, iMem);
-
-		int maxArgs;
-
-		clGetDeviceInfo(ocl.devices[i], CL_DEVICE_MAX_CONSTANT_ARGS, sizeof(int), &maxArgs, NULL);
-		printf("Max constant args: %d\n", maxArgs);
-		clGetDeviceInfo(ocl.devices[i], CL_DEVICE_MAX_PARAMETER_SIZE, sizeof(int), &maxArgs, NULL);
-		printf("Max argument size: %dB\n", maxArgs);
-
-
-	}
-
-#ifdef _WIN32
-	cl_context_properties properties[] = {
-		CL_GL_CONTEXT_KHR, (cl_context_properties) wglGetCurrentContext(),
-		CL_WGL_HDC_KHR, (cl_context_properties) wglGetCurrentDC(),
-		CL_CONTEXT_PLATFORM, (cl_context_properties) targetPlatform,
-		0};
-#endif	
-
-	ocl.context = clCreateContext(properties, ocl.deviceNum, ocl.devices, NULL, NULL, &resultCL);
-
-	if (resultCL != CL_SUCCESS)
-		printf("Error creating OpenCL context!\n");
-	else
-		printf("OpenCL context created successfully.\n");		
-	
-	ocl.input = clCreateFromGLTexture3D(ocl.context, CL_MEM_READ_ONLY, GL_TEXTURE_3D, 0, tex3D, &resultCL);
-
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error creating OpenCL input buffer from 3D texture: ");
-		CLGLError(resultCL);
-		printf("\n");
-	}		
-	else
-		printf("Created OpenCL input buffer from 3D texture\n");	
-
-	ocl.output = clCreateFromGLTexture2D(ocl.context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, fbos["RayTrace"]->GetTextureID(0), &resultCL);
-
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error: creating OpenCL output buffer from FBO: ");
-		CLGLError(resultCL);
-		printf("\n");
-	}
-	else	
-		printf("Created OpenCL output buffer from FBO\n");
-
-	ocl.queue = clCreateCommandQueue(ocl.context, ocl.devices[0], 0, &resultCL);
-	
-	if (resultCL != CL_SUCCESS)
-		printf("\nCould not create OpenCL command queue!\n");
-	else
-		printf("\nCreated OpenCL command queue.\n");
-
-	printf("\n\n");
-
-#pragma endregion
-	
-	CreateRTKernel();
-	
-}
-
-void Engine::UpdateCL()
-{
-	if (ocl.rtKernel)
-	{
-		Mat4 world(16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f);
-		Mat4 invWorldView = inv(world) * cam->GetTransform();
-
-		memcpy(&RTParams.sizeX, &voxelSize.x, sizeof(int) * 3);
-		memcpy(RTParams.invWorldView, invWorldView.Ref(), sizeof(float) * 16);
-		RTParams.invSize[0] = 1.0 / voxelSize.x;
-		RTParams.invSize[1] = 1.0 / voxelSize.y;
-		RTParams.invSize[2] = 1.0 / voxelSize.z;
-
-		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
-		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.input, 0, NULL, NULL);
-		size_t globalWorkSize[] = { Window.Width, Window.Height };
-		
-		clEnqueueWriteBuffer(ocl.queue, ocl.paramBuffer, true, 0, sizeof(RTParams), &RTParams, 0, NULL, NULL);
-
-		clEnqueueNDRangeKernel(ocl.queue, ocl.rtKernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL);
-		clFinish(ocl.queue);
-	}
-}
-
 void Engine::Display()
 {
 
@@ -742,12 +474,7 @@ void Engine::Display()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	if (!clDraw)
-<<<<<<< HEAD
-	{		
-=======
-	{
-		
->>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
+	{	
 		
 		Shader* currentRT = shaders["VolRT"];
 		currentRT->Use();	
@@ -762,7 +489,6 @@ void Engine::Display()
 
 		fbos["RayTrace"]->Unbind();
 	}
-<<<<<<< HEAD
 
 	if (clDraw)
 	{
@@ -774,19 +500,6 @@ void Engine::Display()
 
 #pragma endregion
 
-=======
-
-	if (clDraw)
-	{
-		fbos["RayTrace"]->Unbind();
-		UpdateCL();
-	}
-
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-#pragma endregion
-
->>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 #pragma region DVR
 
 	fbos["DVR"]->Bind();
@@ -851,17 +564,13 @@ void Engine::Display()
 
 #pragma endregion
 
-<<<<<<< HEAD
 	boost::format fmter("FPS: %1%, CamPos: %2%, %3%, %4%, Pitch: %5%, Yaw: %6%, Z Coord: %7%, %8%");
 	fmter % CurrentFPS % cam->Position[0] % cam->Position[1] % cam->Position[2] % cam->Pitch % cam->Yaw % zCoord;
 	if (clDraw)
 		fmter % "OpenCL";
 	else
 		fmter % "OpenGL";
-=======
-	boost::format fmter("FPS: %1%, CamPos: %2%, %3%, %4%, Pitch: %5%, Yaw: %6%, Z Coord: %7%");
-	fmter % CurrentFPS % cam->Position[0] % cam->Position[1] % cam->Position[2] % cam->Pitch % cam->Yaw % zCoord;
->>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
+
 	glfwSetWindowTitle(fmter.str().c_str());
 
 }

@@ -101,21 +101,13 @@ void main()
 		vec3 offset = r.direction * length(invSize) * 0.5;
 		ivec3 startPoint = ivec3(intersectionPoint * size + offset);
 		bool hit = false;
-<<<<<<< HEAD
 		vec3 tDelta = abs(invSize / r.direction);		
-		
-=======
-		vec3 tDelta = abs(invSize / r.direction);
->>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 		ivec3 cur = startPoint;
 		ivec3 stepsize = ivec3(sign(r.direction));
 		vec3 tMax = offset * stepsize;
 		int iter = 0;
 		ivec3 maxCoord = ivec3((size + (stepsize * size)) / 2.0);
-<<<<<<< HEAD
 
-=======
->>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 		while(!hit && iter < 512)
 		{
 			vec4 colour = texelFetch(baseTex, cur, 0);
