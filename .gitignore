@@ -28,6 +28,7 @@ obj/
 [Bb]in
 [Dd]ebug*/
 [Rr]elease*/
+SVORT/ProfilerOutput/*
 Ankh.NoLoad
 
 #Tooling
