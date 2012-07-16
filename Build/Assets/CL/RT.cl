@@ -7,11 +7,19 @@ typedef struct _ray
 	float4 direction;
 } ray;
 
+<<<<<<< HEAD
 typedef struct 
 {	
 	float16 invWorldView;
 	int4 size;
 	float4 invSize;
+=======
+typedef struct _Params
+{
+	float16 invWorldView;
+	int3 size;
+	float3 invSize;
+>>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 } Params;
 
 
@@ -122,7 +130,11 @@ bool intersectCube(ray r, float t0, float t1, float4* intersectionPoint)
 		tmin = tzmin;
 	if (tzmax < tmax)
 		tmax = tzmax;
+<<<<<<< HEAD
 	(*intersectionPoint).xyz = r.origin.xyz + tmin * r.direction.xyz;
+=======
+	(*intersectionPoint) = r.origin + tmin * r.direction;
+>>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 	return ( (tmin < t1) && (tmax > t0) );
 }
 
@@ -131,8 +143,13 @@ __kernel void VolRT(__write_only image2d_t bmp, __read_only image3d_t volTex, __
 
 	int x = get_global_id(0);
 	int y = get_global_id(1);
+<<<<<<< HEAD
 	int w = get_global_size(0) - 1;
 	int h = get_global_size(1) - 1;
+=======
+	int w = get_global_size(0);
+	int h = get_global_size(1);
+>>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 	
 	float xPos = (float)x / (float)w;
 	float yPos = (float)y / (float)h;	
@@ -146,18 +163,31 @@ __kernel void VolRT(__write_only image2d_t bmp, __read_only image3d_t volTex, __
 	
 	int2 coords = (int2)(x, y);
 	
+<<<<<<< HEAD
 	float4 intersectionPoint = (float4)(0.0, 0.0, 0.0, 1.0);	
 
 	if (intersectCube(r, 1.0, 1000.0, &intersectionPoint))
 	{		
 		float3 offset = r.direction.xyz * length(params->invSize.xyz) * 0.5;  //move halfway into voxel		
+=======
+	float4 intersectionPoint = (float4)(0.0, 0.0, 0.0, 1.0);
+	float4 val = (float4)(0.0, 0.0, 0.0, 1.0);	
+
+	if (intersectCube(r, 1.0, 1000.0, &intersectionPoint))
+	{		
+		float3 offset = r.direction.xyz * length(params->invSize) * 0.5;  //move halfway into voxel		
+>>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 		int4 startPoint;
 		
 		startPoint.x = intersectionPoint.x * params->size.x + offset.x;
 		startPoint.y = intersectionPoint.y * params->size.y + offset.y;
 		startPoint.z = intersectionPoint.z * params->size.z + offset.z;	//start point is integer position in voxel grid
 		
+<<<<<<< HEAD
 		float3 tDelta = fabs(params->invSize.xyz / r.direction.xyz);		
+=======
+		float3 tDelta = fabs(params->invSize / r.direction.xyz);		
+>>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 		float3 stepSize = sign(r.direction.xyz);
 		float3 tMax = offset * stepSize;
 		
@@ -170,9 +200,12 @@ __kernel void VolRT(__write_only image2d_t bmp, __read_only image3d_t volTex, __
 		
 		int iter = 0;
 		float4 colour;
+<<<<<<< HEAD
 		//float4 colour = params->invSize.xyzx * 128;
 		//float4 colour = (float4)(1.0, 0.0, 0.0, 1.0);
 		//float4 colour = (float4)(startPoint.x / 256.0, startPoint.y / 256.0, startPoint.z / 256.0, 1.0);
+=======
+>>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 		
 		while(!hit && iter < 512)
 		{

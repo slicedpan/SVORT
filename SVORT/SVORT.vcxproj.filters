@@ -27,7 +27,11 @@
     <ClCompile Include="Utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+<<<<<<< HEAD
     <ClCompile Include="OctreeBuilder.cpp">
+=======
+    <ClCompile Include="VoxelOctree.cpp">
+>>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -44,7 +48,11 @@
     <ClInclude Include="Utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+<<<<<<< HEAD
     <ClInclude Include="OctreeBuilder.h">
+=======
+    <ClInclude Include="VoxelOctree.h">
+>>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

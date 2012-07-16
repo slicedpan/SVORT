@@ -72,6 +72,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="OctreeBuilder.cpp" />
     <ClCompile Include="Utils.cpp" />
+    <ClCompile Include="VoxelOctree.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CubeDrawer.h" />
@@ -79,6 +80,7 @@
     <ClInclude Include="OctreeBuilder.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="VolumeData.h" />
+    <ClInclude Include="VoxelOctree.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -15,6 +15,7 @@ Mat4 Orthographic(float left, float right, float bottom, float top, float near, 
 
 void CLGLError(signed int err)
 {
+<<<<<<< HEAD
 	if (err == CL_SUCCESS)
 		printf("Success\n");
 	else
@@ -27,6 +28,8 @@ void CLGLError(signed int err)
 
 void CLGLErrorName(signed int err)
 {
+=======
+>>>>>>> c07c15a20685d2099ccd41a54596741324ad541f
 	switch(err)
 	{
 	case CL_SUCCESS:
