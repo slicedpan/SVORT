@@ -1,6 +1,8 @@
 
 __constant const sampler_t sampler3D = CLK_FILTER_NEAREST | CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP;
 
+#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+
 typedef struct _ray
 {
 	float4 origin;
@@ -13,6 +15,12 @@ typedef struct
 	int4 size;
 	float4 invSize;
 } Params;
+
+typedef struct
+{
+	int numSamples;
+	int total;
+} Counters;
 
 
 float4 multVecMat(const float4* vector, __constant float16* matrix)
@@ -126,14 +134,13 @@ bool intersectCube(ray r, float t0, float t1, float4* intersectionPoint)
 	return ( (tmin < t1) && (tmax > t0) );
 }
 
-__kernel void VolRT(__write_only image2d_t bmp, __read_only image3d_t volTex, __constant Params* params)
+__kernel void VolRT(__write_only image2d_t bmp, __read_only image3d_t volTex, __constant Params* params, __global Counters* counters)
 {
 
 	int x = get_global_id(0);
 	int y = get_global_id(1);
 	int w = get_global_size(0) - 1;
 	int h = get_global_size(1) - 1;
-
 	
 	float xPos = (float)x / (float)w;
 	float yPos = (float)y / (float)h;	
@@ -147,7 +154,9 @@ __kernel void VolRT(__write_only image2d_t bmp, __read_only image3d_t volTex, __
 	
 	int2 coords = (int2)(x, y);	
 
-	float4 intersectionPoint = (float4)(0.0, 0.0, 0.0, 1.0);	
+	float4 intersectionPoint = (float4)(0.0, 0.0, 0.0, 1.0);
+
+	atom_add(&counters->numSamples, 1);	
 
 	if (intersectCube(r, 1.0, 1000.0, &intersectionPoint))
 	{		
@@ -174,8 +183,7 @@ __kernel void VolRT(__write_only image2d_t bmp, __read_only image3d_t volTex, __
 		float4 colour;
 		//float4 colour = params->invSize.xyzx * 128;
 		//float4 colour = (float4)(1.0, 0.0, 0.0, 1.0);
-		//float4 colour = (float4)(startPoint.x / 256.0, startPoint.y / 256.0, startPoint.z / 256.0, 1.0);
-
+		//float4 colour = (float4)(startPoint.x / 256.0, startPoint.y / 256.0, startPoint.z / 256.0, 1.0);		
 		
 		while(!hit && iter < 512)
 		{
@@ -221,8 +229,9 @@ __kernel void VolRT(__write_only image2d_t bmp, __read_only image3d_t volTex, __
 			}
 			++iter;			
 		}
+		atom_add(&counters->total, iter);
 		if (hit)
-		{			
+		{						
 			write_imagef(bmp, coords, colour);		
 		}
 	}	

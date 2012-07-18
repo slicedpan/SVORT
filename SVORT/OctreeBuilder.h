@@ -35,6 +35,8 @@ private:
 		cl_kernel octKernel;
 		cl_program octProgram;
 		cl_device_id device;
+		cl_kernel mipKernel;
+		cl_program mipProgram;
 	} ocl;
 };
 

@@ -77,7 +77,7 @@ void OctreeBuilder::CreateKernel()
 	else
 		printf("OpenCL program loaded.\n");
 
-	resultCL = clBuildProgram(ocl.octProgram, 1, &ocl.device, "", NULL, NULL);
+	resultCL = clBuildProgram(ocl.octProgram, 1, &ocl.device, "-I Assets/CL/", NULL, NULL);
 	if (resultCL != CL_SUCCESS)
 	{
 		printf("Error building program: ");

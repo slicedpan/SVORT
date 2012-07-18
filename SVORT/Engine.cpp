@@ -17,6 +17,8 @@
 #include "StaticMesh.h"
 #include "VoxelOctree.h"
 #include "CL\cl_gl.h"
+#include "GLGUI\Primitives.h"
+
 #ifdef _WIN32
 #include <Windows.h>
 #endif
@@ -144,9 +146,9 @@ void Engine::Init3DTexture()
 void Engine::Setup()
 {
 
-	voxelSize.x = 256;
-	voxelSize.y = 256;
-	voxelSize.z = 256;
+	voxelSize.x = 128;
+	voxelSize.y = 128;
+	voxelSize.z = 128;
 	
 	glGenTextures(1, &tex3D);
 	
@@ -238,7 +240,7 @@ void Engine::CreateRTKernel()
 	else
 		printf("OpenCL program loaded.\n");
 
-	resultCL = clBuildProgram(ocl.rtProgram, ocl.deviceNum, ocl.devices, "", NULL, NULL);
+	resultCL = clBuildProgram(ocl.rtProgram, ocl.deviceNum, ocl.devices, "-cl-mad-enable -cl-no-signed-zeros", NULL, NULL);
 	if (resultCL != CL_SUCCESS)
 	{
 		printf("Error building program: ");
@@ -307,6 +309,7 @@ void Engine::CreateRTKernel()
 		clSetKernelArg(ocl.rtKernel, 0, sizeof(cl_mem), &ocl.output);
 		clSetKernelArg(ocl.rtKernel, 1, sizeof(cl_mem), &ocl.input);
 		clSetKernelArg(ocl.rtKernel, 2, sizeof(cl_mem), &ocl.paramBuffer);
+		clSetKernelArg(ocl.rtKernel, 3, sizeof(cl_mem), &ocl.rtCounterBuffer);
 	}
 }
 
@@ -425,12 +428,16 @@ void Engine::SetupOpenCL()
 	else
 		printf("\nCreated OpenCL command queue.\n");
 
+	printf("Creating counter buffer...\n");
+	ocl.rtCounterBuffer = clCreateBuffer(ocl.context, CL_MEM_WRITE_ONLY, sizeof(int) * 2, NULL, &resultCL);
+	CLGLError(resultCL);
+
 	printf("\n\n");
 
 #pragma endregion
 	
 	CreateRTKernel();
-	//octreeBuilder.Init(ocl.context, ocl.devices[0]);
+	octreeBuilder.Init(ocl.context, ocl.devices[0]);
 	
 }
 
@@ -449,14 +456,23 @@ void Engine::UpdateCL()
 
 		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
 		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.input, 0, NULL, NULL);
-		size_t globalWorkSize[] = { Window.Width, Window.Height };
+		size_t globalWorkSize[] = { 1024, 768 };
+
+		int counters[2];
+		memset(counters, 0, sizeof(counters));
 
 		clEnqueueWriteBuffer(ocl.queue, ocl.paramBuffer, false, 0, sizeof(RTParams), &RTParams, 0, NULL, NULL);
+		clEnqueueWriteBuffer(ocl.queue, ocl.rtCounterBuffer, false, 0, sizeof(int) * 2, &counters, 0, NULL, NULL);
 
 		clEnqueueNDRangeKernel(ocl.queue, ocl.rtKernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL);
 
 		clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
 		clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.input, 0, NULL, NULL);
+
+		clEnqueueReadBuffer(ocl.queue, ocl.rtCounterBuffer, true, 0, sizeof(int) * 2, &counters, 0, NULL, NULL);
+
+		averageIterations = (float)counters[1] / (float)counters[0];
+		
 	}
 }
 
@@ -548,7 +564,7 @@ void Engine::Display()
 		clFinish(ocl.queue);
 
 	glBindTexture(GL_TEXTURE_2D, fbos["RayTrace"]->GetTextureID(0));
-	QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(1.0, 1.0));
+	QuadDrawer::DrawQuad(Vec2(-1.0, -0.5), Vec2(1.0, 1.0));
 
 #pragma region Draw3dTexture:
 
@@ -564,14 +580,18 @@ void Engine::Display()
 
 #pragma endregion
 
-	boost::format fmter("FPS: %1%, CamPos: %2%, %3%, %4%, Pitch: %5%, Yaw: %6%, Z Coord: %7%, %8%");
+	boost::format fmter("FPS: %1%, CamPos: %2%, %3%, %4%, Pitch: %5%, Yaw: %6%, Z Coord: %7%, %8%, average iterations: %9%");
 	fmter % CurrentFPS % cam->Position[0] % cam->Position[1] % cam->Position[2] % cam->Pitch % cam->Yaw % zCoord;
 	if (clDraw)
 		fmter % "OpenCL";
 	else
 		fmter % "OpenGL";
 
+	fmter % averageIterations;
+
 	glfwSetWindowTitle(fmter.str().c_str());
+
+	PrintText(Vec2(1024.0, 1024.0), Vec2(-1024, -512), fmter.str().c_str(), Colour::White);
 
 }
 
@@ -625,6 +645,6 @@ void Engine::KeyPressed(int code)
 
 void Engine::KeyReleased(int code)
 {
-
+	
 }
 

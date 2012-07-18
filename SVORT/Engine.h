@@ -57,6 +57,7 @@ private:
 		cl_program octreeBuildProgram;
 		cl_kernel octreeBuildKernel;
 		cl_mem paramBuffer;
+		cl_mem rtCounterBuffer;		
 	} ocl;
 	
 	struct
@@ -68,5 +69,6 @@ private:
 		int sizeW;
 		float invSize[4];
 	} RTParams;
+	float averageIterations;
 };
 
