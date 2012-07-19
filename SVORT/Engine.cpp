@@ -1,3 +1,5 @@
+#define CL_USE_DEPRECATED_OPENCL_1_1_APIS
+
 #include "Engine.h"
 #include "GLFW\GLFWEngine.h"
 #include <stdlib.h>
@@ -30,8 +32,8 @@ struct _vs
 	int z;
 } voxelSize;
 
-int RTWidth = 1024;
-int RTHeight = 768;
+int RTWidth = 512;
+int RTHeight = 384;
 
 Engine::Engine(WindowSettings& w) : GLFWEngine(w),
 	fbos(FBOManager::GetSingleton()),
@@ -145,6 +147,8 @@ void Engine::Init3DTexture()
 
 void Engine::Setup()
 {
+
+	clDraw = false;
 
 	voxelSize.x = 128;
 	voxelSize.y = 128;
@@ -456,7 +460,7 @@ void Engine::UpdateCL()
 
 		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
 		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.input, 0, NULL, NULL);
-		size_t globalWorkSize[] = { 1024, 768 };
+		size_t globalWorkSize[] = { Window.Width, Window.Height * 0.75 };
 
 		int counters[2];
 		memset(counters, 0, sizeof(counters));
@@ -591,7 +595,11 @@ void Engine::Display()
 
 	glfwSetWindowTitle(fmter.str().c_str());
 
-	PrintText(Vec2(1024.0, 1024.0), Vec2(-1024, -512), fmter.str().c_str(), Colour::White);
+	fmter.clear();
+	fmter.parse("Avg iterations: %1%");
+	fmter % averageIterations;
+
+	PrintText(Vec2(Window.Width, Window.Height), Vec2(-Window.Width, -Window.Height / 2.0), fmter.str().c_str(), Colour::White);
 
 }
 

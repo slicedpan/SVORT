@@ -6,6 +6,7 @@ uniform mat4 invWorldView;
 uniform float maxDist;
 uniform vec3 sphereCentre;
 uniform ivec3 size;
+uniform int maxIterations = 256;
 out vec4 finalColour;
 uniform float screenDist = 10.0;
 
@@ -108,7 +109,7 @@ void main()
 		int iter = 0;
 		ivec3 maxCoord = ivec3((size + (stepsize * size)) / 2.0);
 
-		while(!hit && iter < 512)
+		while(!hit && iter < maxIterations)
 		{
 			vec4 colour = texelFetch(baseTex, cur, 0);
 			if (colour.a > 0.00001)
