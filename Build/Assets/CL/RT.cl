@@ -177,23 +177,28 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 		maxCoord.y = (params->size.y + (stepSize.y * params->size.y)) / 2.0;
 		maxCoord.z = (params->size.z + (stepSize.z * params->size.z)) / 2.0;
 		
-		bool hit = 0;
+		bool hit = 1;
 		
 		int iter = 0;
-		uint4 col;
 		//float4 colour = params->invSize.xyzx * 128;
-		//float4 colour = (float4)(1.0, 0.0, 0.0, 1.0);
+		float4 colour = (float4)(1.0, 0.0, 0.0, 1.0);
 		//float4 colour = (float4)(startPoint.x / 256.0, startPoint.y / 256.0, startPoint.z / 256.0, 1.0);		
 		
 		while(!hit && iter < 512)
 		{
 			int pos = startPoint.z * params->size.x * params->size.y + startPoint.y * params->size.x + startPoint.x;
 			
-			col.x = input[pos] & 0xff000000;
-			col.y = input[pos] & 0x00ff0000;
-			col.z = input[pos] & 0x0000ff00;
-			col.w = input[pos] & 0x000000ff;
-			if (col.w > 0)
+			colour.x = input[pos] & 0xff000000;
+			colour.y = input[pos] & 0x00ff0000;
+			colour.z = input[pos] & 0x0000ff00;
+			colour.w = input[pos] & 0x000000ff;
+			
+			colour /= 255.0;
+			colour.x = 1.0;
+			
+			++iter;
+			
+			if (colour.w > 0)
 			{				
 				hit = true;
 				break;
@@ -231,13 +236,12 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 						break;
 					tMax.z = tMax.z + tDelta.z;
 				}
-			}
-			++iter;			
+			}		
 		}
 		atom_add(&counters->total, iter);
 		if (hit)
 		{						
-			write_imageui(bmp, coords, col);		
+			write_imagef(bmp, coords, colour);		
 		}
 	}	
 	

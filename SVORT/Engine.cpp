@@ -79,13 +79,13 @@ void Engine::Init3DTexture()
 	voxelBuilder.Build(mesh, &voxelSize.x, shaders["Basic"]);
 	ocl.volumeData = voxelBuilder.GetVoxelData();	
 	if (ocl.voxKernel)
-		clSetKernelArg(ocl.voxKernel, 0, sizeof(cl_mem), &ocl.volumeData);
+		clSetKernelArg(ocl.voxKernel, 1, sizeof(cl_mem), &ocl.volumeData);
 }
 
 void Engine::Setup()
 {
 
-	clDraw = false;
+	clDraw = true;
 
 	voxelSize.x = 128;
 	voxelSize.y = 128;
@@ -171,12 +171,13 @@ void Engine::CreateRTKernel()
 	if (ocl.voxProgram)
 		clReleaseProgram(ocl.voxProgram);
 
-	k = CreateKernelFromFile("Assets/CL/DisplayVox.cl", "DisplayVoxel", ocl.context, ocl.devices[0]);
+	k = CreateKernelFromFile("Assets/CL/DrawVox.cl", "DrawVoxels", ocl.context, ocl.devices[0]);
 
 	if (k.ok)
 	{
 		ocl.voxKernel = k.kernel;
 		ocl.voxProgram = k.program;
+		clSetKernelArg(ocl.voxKernel, 0, sizeof(cl_mem), &ocl.output);
 	}
 
 }
@@ -285,6 +286,10 @@ void Engine::SetupOpenCL()
 	ocl.rtCounterBuffer = clCreateBuffer(ocl.context, CL_MEM_WRITE_ONLY, sizeof(int) * 2, NULL, &resultCL);
 	CLGLError(resultCL);
 
+	printf("Creating output buffer from OpenGL texture...\n");
+	ocl.output = clCreateFromGLTexture2D(ocl.context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, fbos["RayTrace"]->GetTextureID(0), &resultCL);
+	CLGLError(resultCL);
+
 	printf("\n\n");
 
 #pragma endregion
@@ -329,11 +334,31 @@ void Engine::UpdateCL()
 	}
 }
 
+void Engine::DebugDrawVoxelData()
+{
+	cl_int4 size;
+	memcpy(size.s, &voxelSize.x, sizeof(int) * 3);
+	size.s[3] = zCoord * 255;
+	if (ocl.voxKernel)
+	{
+		size_t workDim[2];
+		workDim[0] = Window.Width;
+		workDim[1] = Window.Height * 0.75;
+		clSetKernelArg(ocl.voxKernel, 2, sizeof(cl_int4), &size);
+		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+		clEnqueueNDRangeKernel(ocl.queue, ocl.voxKernel, 2, NULL, workDim, NULL, 0, NULL, NULL);
+		clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+
+	}
+}
+
 void Engine::Display()
 {
 	Mat4 world(16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f);
 	Mat4 invWorld = inv(world);
 	Mat4 I(vl_one);
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	fbos["RayTrace"]->Bind();
 
@@ -341,11 +366,16 @@ void Engine::Display()
 
 	fbos["RayTrace"]->Unbind();
 
-	UpdateCL();
-
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	if (clDraw)
+		UpdateCL();
+	else
+		DebugDrawVoxelData();	
 
 	clFinish(ocl.queue);
+
+	shaders["Copy"]->Use();
+	shaders["Copy"]->Uniforms["baseTex"].SetValue(0);
+	glActiveTexture(GL_TEXTURE0);
 
 	glBindTexture(GL_TEXTURE_2D, fbos["RayTrace"]->GetTextureID(0));
 	QuadDrawer::DrawQuad(Vec2(-1.0, -0.5), Vec2(1.0, 1.0));
