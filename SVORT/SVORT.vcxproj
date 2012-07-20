@@ -72,14 +72,17 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="OctreeBuilder.cpp" />
     <ClCompile Include="Utils.cpp" />
+    <ClCompile Include="VoxelBuilder.cpp" />
     <ClCompile Include="VoxelOctree.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CLUtils.h" />
     <ClInclude Include="CubeDrawer.h" />
     <ClInclude Include="Engine.h" />
     <ClInclude Include="OctreeBuilder.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="VolumeData.h" />
+    <ClInclude Include="VoxelBuilder.h" />
     <ClInclude Include="VoxelOctree.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -134,7 +134,7 @@ bool intersectCube(ray r, float t0, float t1, float4* intersectionPoint)
 	return ( (tmin < t1) && (tmax > t0) );
 }
 
-__kernel void VolRT(__write_only image2d_t bmp, __read_only image3d_t volTex, __constant Params* params, __global Counters* counters)
+__kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant Params* params, __global Counters* counters)
 {
 
 	int x = get_global_id(0);
@@ -180,15 +180,20 @@ __kernel void VolRT(__write_only image2d_t bmp, __read_only image3d_t volTex, __
 		bool hit = 0;
 		
 		int iter = 0;
-		float4 colour;
+		uint4 col;
 		//float4 colour = params->invSize.xyzx * 128;
 		//float4 colour = (float4)(1.0, 0.0, 0.0, 1.0);
 		//float4 colour = (float4)(startPoint.x / 256.0, startPoint.y / 256.0, startPoint.z / 256.0, 1.0);		
 		
 		while(!hit && iter < 512)
 		{
-			colour = read_imagef(volTex, sampler3D, startPoint);
-			if (colour.w > 0.00001)
+			int pos = startPoint.z * params->size.x * params->size.y + startPoint.y * params->size.x + startPoint.x;
+			
+			col.x = input[pos] & 0xff000000;
+			col.y = input[pos] & 0x00ff0000;
+			col.z = input[pos] & 0x0000ff00;
+			col.w = input[pos] & 0x000000ff;
+			if (col.w > 0)
 			{				
 				hit = true;
 				break;
@@ -232,7 +237,7 @@ __kernel void VolRT(__write_only image2d_t bmp, __read_only image3d_t volTex, __
 		atom_add(&counters->total, iter);
 		if (hit)
 		{						
-			write_imagef(bmp, coords, colour);		
+			write_imageui(bmp, coords, col);		
 		}
 	}	
 	

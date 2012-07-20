@@ -20,6 +20,7 @@
 #include "VoxelOctree.h"
 #include "CL\cl_gl.h"
 #include "GLGUI\Primitives.h"
+#include "CLUtils.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -75,74 +76,10 @@ void Engine::Init3DTexture()
 	if (!drawMesh1)
 		mesh = mesh2;  	
 
-	int imageSize = voxelSize.x * voxelSize.y * sizeof(unsigned int);
-	unsigned int* data = (unsigned int*)malloc(imageSize * voxelSize.z);
-
-	float zDist = mesh->SubMeshes[0].Max[2] - mesh->SubMeshes[0].Min[2];
-	float increment = zDist / voxelSize.z;
-	zDist = - increment;
-
-	for (int i = 0; i < voxelSize.z; ++i)
-	{
-
-		fbos["Voxel"]->Bind();
-
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		float camHeight = mesh->SubMeshes[0].Max[1] - mesh->SubMeshes[0].Min[1];
-		camHeight /= 2.0f;
-
-		float camDist = mesh->SubMeshes[0].Max[2] - mesh->SubMeshes[0].Min[2];
-		camDist /= 2.0f;
-
-		Mat4 ortho = Orthographic(mesh->SubMeshes[0].Min[0], mesh->SubMeshes[0].Max[0], mesh->SubMeshes[0].Min[1], mesh->SubMeshes[0].Max[1], zDist, zDist + (increment * 5.0f));
-
-		shaders["Basic"]->Use();
-		shaders["Basic"]->Uniforms["World"].SetValue(Mat4(vl_one));
-		shaders["Basic"]->Uniforms["View"].SetValue(HTrans4(Vec3(0, 0, -camDist)));
-		shaders["Basic"]->Uniforms["Projection"].SetValue(ortho);
-		shaders["Basic"]->Uniforms["lightCone"].SetValue(Vec3(0, -1, 0));
-		shaders["Basic"]->Uniforms["lightPos"].SetValue(Vec3(0, 10, 0));
-		shaders["Basic"]->Uniforms["lightRadius"].SetValue(15.0f);
-
-		glEnable(GL_DEPTH_TEST);
-		mesh->SubMeshes[0].Draw();
-
-		fbos["Voxel"]->Unbind();
-
-		shaders["Copy"]->Use();
-		shaders["Copy"]->Uniforms["baseTex"].SetValue(0);
-
-		glDisable(GL_DEPTH_TEST);
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, fbos["Voxel"]->GetTextureID(0));
-		QuadDrawer::DrawQuad(Vec2(-1.0f, -1.0f), Vec2(1.0f, 1.0f));
-
-		zDist += increment;
-
-		boost::format fmter("Done: %1% / %2%");
-		fmter % (i + 1) % voxelSize.z;
-	  
-		glfwSetWindowTitle(fmter.str().c_str());
-		glfwSwapBuffers();
-
-		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, data + (voxelSize.x * voxelSize.y * i));
-		//glfwSleep(0.1); This is so that the process is visible
-
-	}
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_3D, tex3D);
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA, voxelSize.x, voxelSize.y, voxelSize.z, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-
-	//glGenerateMipmap(GL_TEXTURE_3D);	
-
-	glFinish();	
-	vo = new VoxelOctree();
-	vo->Load(data, voxelSize.x, voxelSize.y, voxelSize.z);
-	free(data);
-
+	voxelBuilder.Build(mesh, &voxelSize.x, shaders["Basic"]);
+	ocl.volumeData = voxelBuilder.GetVoxelData();	
+	if (ocl.voxKernel)
+		clSetKernelArg(ocl.voxKernel, 0, sizeof(cl_mem), &ocl.volumeData);
 }
 
 void Engine::Setup()
@@ -182,6 +119,9 @@ void Engine::Setup()
 	shaders.Add(new Shader("Assets/Shaders/VolRT.vert", "Assets/Shaders/VolRT.frag", "VolRT"));
 	shaders.CompileShaders();
 
+	voxelBuilder.SetDebugDrawShader(shaders["Copy"]);
+	voxelBuilder.SetDebugDraw(true);
+
 	printf("Creating FBOS... ");
 
 	fbos.AddFBO(new FrameBufferObject(Window.Width / 2, Window.Height, 24, 0, GL_RGBA, GL_TEXTURE_2D, "DVR"));
@@ -201,120 +141,44 @@ void Engine::Setup()
 	drawQuad = false;
 	drawMesh1 = true;
 	
-	zCoord = 1.0f; 
-	Init3DTexture();	
+	zCoord = 1.0f; 	
 	SetupOpenCL();
+	Init3DTexture();
 }
 
 void Engine::CreateRTKernel()
 {
 
-	cl_int resultCL;
-
 	if (ocl.rtKernel)
-	{
 		clReleaseKernel(ocl.rtKernel);
-	}
 	if (ocl.rtProgram)
-	{
 		clReleaseProgram(ocl.rtProgram);
-	}
 
-	const char* source = getSourceFromFile("Assets/CL/RT.cl");
-	if (source)
-	{
-		ocl.rtProgram = clCreateProgramWithSource(ocl.context, 1, &source, NULL, &resultCL);
-	}
-	else
-	{	
-		printf("Could not open program file!\n");
-		CLGLError(resultCL);
-		printf("\n");
-		return;
-	}
+	oclKernel k = CreateKernelFromFile("Assets/CL/RT.cl", "VolRT", ocl.context, ocl.devices[0]);	
 
-	free((char*)source);
-
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error loading program!\n");
-		CLGLError(resultCL);
-		printf("\n");
-	}
-	else
-		printf("OpenCL program loaded.\n");
-
-	resultCL = clBuildProgram(ocl.rtProgram, ocl.deviceNum, ocl.devices, "-cl-mad-enable -cl-no-signed-zeros", NULL, NULL);
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error building program: ");
-		CLGLError(resultCL);
-
-		size_t length;
-        resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
-                                        ocl.devices[0], 
-                                        CL_PROGRAM_BUILD_LOG, 
-                                        0, 
-                                        NULL, 
-                                        &length);
-        if(resultCL != CL_SUCCESS) 
-            printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-
-		char* buffer = (char*)malloc(length);
-        resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
-                                        ocl.devices[0], 
-                                        CL_PROGRAM_BUILD_LOG, 
-                                        length, 
-                                        buffer, 
-                                        NULL);
-        if(resultCL != CL_SUCCESS) 
-            printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-		else
-			printf("%s\n", buffer);
-	}
-	else
-	{
-		printf("Program built successfully.\n");
-	}
-
-	size_t length;
-    resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
-                                    ocl.devices[0], 
-                                    CL_PROGRAM_BUILD_LOG, 
-                                    0, 
-                                    NULL, 
-                                    &length);
-    if(resultCL != CL_SUCCESS) 
-        printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-
-	char* buffer = (char*)malloc(length);
-    resultCL = clGetProgramBuildInfo(ocl.rtProgram, 
-                                    ocl.devices[0], 
-                                    CL_PROGRAM_BUILD_LOG, 
-                                    length, 
-                                    buffer, 
-                                    NULL);
-    if(resultCL != CL_SUCCESS) 
-        printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-	else
-		printf("%s\n", buffer);
-
-	ocl.rtKernel = clCreateKernel(ocl.rtProgram, "VolRT", &resultCL);
-
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error creating kernel: ");
-		CLGLError(resultCL);
-		printf("\n");
-	}
-	else
-	{
-		printf("Kernel created successfully.\n");		
+	if (k.ok)
+	{		
+		ocl.rtKernel = k.kernel;
+		ocl.rtProgram = k.program;	
 		clSetKernelArg(ocl.rtKernel, 0, sizeof(cl_mem), &ocl.output);
 		clSetKernelArg(ocl.rtKernel, 1, sizeof(cl_mem), &ocl.input);
 		clSetKernelArg(ocl.rtKernel, 2, sizeof(cl_mem), &ocl.paramBuffer);
 		clSetKernelArg(ocl.rtKernel, 3, sizeof(cl_mem), &ocl.rtCounterBuffer);
 	}
+
+	if (ocl.voxKernel)
+		clReleaseKernel(ocl.voxKernel);
+	if (ocl.voxProgram)
+		clReleaseProgram(ocl.voxProgram);
+
+	k = CreateKernelFromFile("Assets/CL/DisplayVox.cl", "DisplayVoxel", ocl.context, ocl.devices[0]);
+
+	if (k.ok)
+	{
+		ocl.voxKernel = k.kernel;
+		ocl.voxProgram = k.program;
+	}
+
 }
 
 void Engine::SetupOpenCL()
@@ -402,22 +266,7 @@ void Engine::SetupOpenCL()
 	if (resultCL != CL_SUCCESS)
 		printf("Error creating OpenCL context!\n");
 	else
-		printf("OpenCL context created successfully.\n");
-
-	printf("Creating OpenCL buffer from 3D texture... \n");
-	ocl.input = clCreateFromGLTexture3D(ocl.context, CL_MEM_READ_ONLY, GL_TEXTURE_3D, 0, tex3D, &resultCL);
-	CLGLError(resultCL);
-
-	ocl.output = clCreateFromGLTexture2D(ocl.context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, fbos["RayTrace"]->GetTextureID(0), &resultCL);
-
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error: creating OpenCL output buffer from FBO: ");
-		CLGLError(resultCL);
-		printf("\n");
-	}
-	else	
-		printf("Created OpenCL output buffer from FBO\n");
+		printf("OpenCL context created successfully.\n");	
 
 	ocl.paramBuffer = clCreateBuffer(ocl.context, CL_MEM_READ_ONLY, sizeof(RTParams), NULL, &resultCL);
 	if (resultCL != CL_SUCCESS)
@@ -442,11 +291,12 @@ void Engine::SetupOpenCL()
 	
 	CreateRTKernel();
 	octreeBuilder.Init(ocl.context, ocl.devices[0]);
+	voxelBuilder.Init(ocl.context, ocl.devices[0]);
 	
 }
 
 void Engine::UpdateCL()
-{
+{	
 	if (ocl.rtKernel)
 	{
 		Mat4 world(16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f);
@@ -459,7 +309,7 @@ void Engine::UpdateCL()
 		RTParams.invSize[2] = 1.0 / voxelSize.z;
 
 		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
-		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.input, 0, NULL, NULL);
+
 		size_t globalWorkSize[] = { Window.Width, Window.Height * 0.75 };
 
 		int counters[2];
@@ -471,7 +321,6 @@ void Engine::UpdateCL()
 		clEnqueueNDRangeKernel(ocl.queue, ocl.rtKernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL);
 
 		clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
-		clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.input, 0, NULL, NULL);
 
 		clEnqueueReadBuffer(ocl.queue, ocl.rtCounterBuffer, true, 0, sizeof(int) * 2, &counters, 0, NULL, NULL);
 
@@ -482,107 +331,24 @@ void Engine::UpdateCL()
 
 void Engine::Display()
 {
-
 	Mat4 world(16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f);
 	Mat4 invWorld = inv(world);
 	Mat4 I(vl_one);
-
-#pragma region RayTracer
 
 	fbos["RayTrace"]->Bind();
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	if (!clDraw)
-	{	
-		
-		Shader* currentRT = shaders["VolRT"];
-		currentRT->Use();	
-		currentRT->Uniforms["baseTex"].SetValue(1);
-		currentRT->Uniforms["invWorldView"].SetValue(invWorld * cam->GetTransform());
-		currentRT->Uniforms["maxDist"].SetValue(1000.0f);
-		currentRT->Uniforms["sphereCentre"].SetValue(Vec3(vl_zero));
-		currentRT->Uniforms["screenDist"].SetValue(zCoord);
-		currentRT->Uniforms["size"].SetValue(voxelSize.x, voxelSize.y, voxelSize.z);
-	
-		QuadDrawer::DrawQuad(Vec2(-1.0f, -1.0f), Vec2(1.0f, 1.0f));
+	fbos["RayTrace"]->Unbind();
 
-		fbos["RayTrace"]->Unbind();
-	}
-
-	if (clDraw)
-	{
-		fbos["RayTrace"]->Unbind();
-		UpdateCL();
-	}
+	UpdateCL();
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-#pragma endregion
-
-#pragma region DVR
-
-	fbos["DVR"]->Bind();
-
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	DrawCoordFrame(cam->GetViewTransform() * cam->GetProjectionMatrix());
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_3D, tex3D);	
-
-	glEnable(GL_DEPTH_TEST);
-
-	shaders["DVR"]->Use();
-	shaders["DVR"]->Uniforms["volTex"].SetValue(1); 
-	shaders["DVR"]->Uniforms["World"].SetValue(Mat4(vl_zero));
-	shaders["DVR"]->Uniforms["viewProj"].SetValue(cam->GetViewTransform() * cam->GetProjectionMatrix());
-	shaders["DVR"]->Uniforms["size"].SetValue(voxelSize.x, voxelSize.y, voxelSize.z);
-
-	
-	if (shaders["DVR"]->Compiled && drawVol)
-		CubeDrawer::DrawCubes(voxelSize.x * voxelSize.y * voxelSize.z);
-
-	/*shaders["Testred"]->Use();
-
-	QuadDrawer::DrawQuad(Vec2(-0.5, -0.5), Vec2(0.5, 0.5));*/      
-
-	fbos["DVR"]->Unbind();   
-
-#pragma endregion
-
-	glDisable(GL_DEPTH_TEST);
-
-	//Draw DVR version
-
-	shaders["Copy"]->Use();
-	shaders["Copy"]->Uniforms["baseTex"].SetValue(0);
-	glActiveTexture(GL_TEXTURE0);
-
-	glBindTexture(GL_TEXTURE_2D, fbos["DVR"]->GetTextureID(0));
-	//QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(0.0, 1.0));
-
-	//Draw RayTraced
-
-	if (clDraw)
-		clFinish(ocl.queue);
+	clFinish(ocl.queue);
 
 	glBindTexture(GL_TEXTURE_2D, fbos["RayTrace"]->GetTextureID(0));
 	QuadDrawer::DrawQuad(Vec2(-1.0, -0.5), Vec2(1.0, 1.0));
-
-#pragma region Draw3dTexture:
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_3D, tex3D);
-
-	shaders["Copy3D"]->Use();
-	shaders["Copy3D"]->Uniforms["baseTex"].SetValue(1);
-	shaders["Copy3D"]->Uniforms["zCoord"].SetValue(zCoord);		
-
-	if (drawQuad)
-		QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(1.0, 1.0));
-
-#pragma endregion
 
 	boost::format fmter("FPS: %1%, CamPos: %2%, %3%, %4%, Pitch: %5%, Yaw: %6%, Z Coord: %7%, %8%, average iterations: %9%");
 	fmter % CurrentFPS % cam->Position[0] % cam->Position[1] % cam->Position[2] % cam->Pitch % cam->Yaw % zCoord;
@@ -640,6 +406,8 @@ void Engine::KeyPressed(int code)
 	{
 		shaders.ReloadShaders();
 		CreateRTKernel();
+		octreeBuilder.ReloadProgram();
+		voxelBuilder.ReloadProgram();
 	}
 	if (code == 'V')
 		drawQuad = !drawQuad;

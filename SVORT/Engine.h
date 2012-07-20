@@ -3,6 +3,7 @@
 #include "VolumeData.h"
 #include "CL\cl.h"
 #include "OctreeBuilder.h"
+#include "VoxelBuilder.h"
 
 class ShaderManager;
 class Camera;
@@ -32,6 +33,7 @@ private:
 	void UpdateCL();
 	void CreateRTKernel();
 	void CleanupCL();
+	void DebugDrawVoxelData();
 	unsigned int tex3D;
 	Camera* cam;
 	CameraController* camControl;
@@ -44,6 +46,7 @@ private:
 	VoxelOctree* vo;
 	bool clDraw;
 	OctreeBuilder octreeBuilder;
+	VoxelBuilder voxelBuilder;
 	struct
 	{
 		cl_context context;
@@ -54,10 +57,12 @@ private:
 		cl_command_queue queue;
 		cl_program rtProgram;
 		cl_kernel rtKernel;
-		cl_program octreeBuildProgram;
-		cl_kernel octreeBuildKernel;
+		cl_program voxProgram;
+		cl_kernel voxKernel;
 		cl_mem paramBuffer;
-		cl_mem rtCounterBuffer;		
+		cl_mem rtCounterBuffer;	
+		cl_mem volumeData;
+		
 	} ocl;
 	
 	struct

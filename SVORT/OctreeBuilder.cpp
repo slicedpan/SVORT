@@ -5,6 +5,7 @@
 #include "Utils.h"
 #include <CL\cl_gl.h>
 #include <GL\glew.h>
+#include "CLUtils.h"
 
 OctreeBuilder::OctreeBuilder(void)
 {
@@ -51,95 +52,12 @@ cl_mem OctreeBuilder::Build(cl_mem inputBuf, int* dimensions)
 
 void OctreeBuilder::CreateKernel()
 {
-
-	cl_int resultCL;
-
-	const char* source = getSourceFromFile("Assets/CL/Octree.cl");
-	if (source)
+	oclKernel k = CreateKernelFromFile("Assets/CL/Octree.cl", "CreateOctree", ocl.context, ocl.device);
+	if (k.ok)
 	{
-		ocl.octProgram = clCreateProgramWithSource(ocl.context, 1, &source, NULL, &resultCL);
-		free((char*)source);
-	}
-	else
-	{	
-		printf("Could not open program file!\n");
-		CLGLError(resultCL);
-		printf("\n");
-		return;
+		ocl.octKernel = k.kernel;
+		ocl.octProgram = k.program;
 	}	
-
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error loading program!\n");
-		CLGLError(resultCL);
-		printf("\n");
-	}
-	else
-		printf("OpenCL program loaded.\n");
-
-	resultCL = clBuildProgram(ocl.octProgram, 1, &ocl.device, "-I Assets/CL/", NULL, NULL);
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error building program: ");
-		CLGLError(resultCL);
-
-		size_t length;
-        resultCL = clGetProgramBuildInfo(ocl.octProgram, 
-                                        ocl.device, 
-                                        CL_PROGRAM_BUILD_LOG, 
-                                        0, 
-                                        NULL, 
-                                        &length);
-        if(resultCL != CL_SUCCESS) 
-            printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-
-		char* buffer = (char*)malloc(length);
-        resultCL = clGetProgramBuildInfo(ocl.octProgram, 
-                                        ocl.device, 
-                                        CL_PROGRAM_BUILD_LOG, 
-                                        length, 
-                                        buffer, 
-                                        NULL);
-        if(resultCL != CL_SUCCESS) 
-            printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-		else
-			printf("%s\n", buffer);
-	}
-	else
-	{
-		printf("Program built successfully.\n");
-	}
-
-	size_t length;
-    resultCL = clGetProgramBuildInfo(ocl.octProgram, 
-                                    ocl.device, 
-                                    CL_PROGRAM_BUILD_LOG, 
-                                    0, 
-                                    NULL, 
-                                    &length);
-    if(resultCL != CL_SUCCESS) 
-        printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-
-	char* buffer = (char*)malloc(length);
-    resultCL = clGetProgramBuildInfo(ocl.octProgram, 
-                                    ocl.device, 
-                                    CL_PROGRAM_BUILD_LOG, 
-                                    length, 
-                                    buffer, 
-                                    NULL);
-    if(resultCL != CL_SUCCESS) 
-        printf("InitCL()::Error: Getting Program build info(clGetProgramBuildInfo)\n");
-	else
-		printf("%s\n", buffer);
-
-	ocl.octKernel = clCreateKernel(ocl.octProgram, "CreateOctree", &resultCL);
-
-	if (resultCL != CL_SUCCESS)
-	{
-		printf("Error creating kernel: ");
-		CLGLError(resultCL);
-		printf("\n");
-	}
 }
 
 void OctreeBuilder::ReloadProgram()
