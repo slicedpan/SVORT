@@ -85,7 +85,7 @@ void Engine::Init3DTexture()
 void Engine::Setup()
 {
 
-	clDraw = true;
+	clDraw = false;
 
 	voxelSize.x = 128;
 	voxelSize.y = 128;
@@ -304,6 +304,7 @@ void Engine::UpdateCL()
 {	
 	if (ocl.rtKernel)
 	{
+		cl_int resultCL;
 		Mat4 world(16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f);
 		Mat4 invWorldView = inv(world) * cam->GetTransform();
 
@@ -313,7 +314,7 @@ void Engine::UpdateCL()
 		RTParams.invSize[1] = 1.0 / voxelSize.y;
 		RTParams.invSize[2] = 1.0 / voxelSize.z;
 
-		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+		resultCL = clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
 
 		size_t globalWorkSize[] = { Window.Width, Window.Height * 0.75 };
 
@@ -325,7 +326,7 @@ void Engine::UpdateCL()
 
 		clEnqueueNDRangeKernel(ocl.queue, ocl.rtKernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL);
 
-		clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+		resultCL = clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
 
 		clEnqueueReadBuffer(ocl.queue, ocl.rtCounterBuffer, true, 0, sizeof(int) * 2, &counters, 0, NULL, NULL);
 

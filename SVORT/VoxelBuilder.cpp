@@ -1,3 +1,5 @@
+#define CL_USE_DEPRECATED_OPENCL_1_1_APIS
+
 #include "VoxelBuilder.h"
 #include <string.h>
 #include <stdlib.h>
