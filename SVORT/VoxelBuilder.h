@@ -16,6 +16,8 @@ public:
 	cl_mem GetVoxelData();
 	void SetDebugDrawShader(Shader* shader);
 	void SetDebugDraw(bool enabled);
+	void GenerateMipmaps();
+	int GetMaxNumMips();
 private:
 	void CreateKernels();
 	struct
@@ -32,5 +34,7 @@ private:
 	} ocl;
 	bool debugDraw;
 	Shader* debugDrawShader;
+	int maxMips;
+	int dims[3];
 };
 

@@ -75,5 +75,6 @@ private:
 		float invSize[4];
 	} RTParams;
 	float averageIterations;
+	int mipLevel;
 };
 

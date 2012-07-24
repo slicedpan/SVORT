@@ -33,8 +33,8 @@ struct _vs
 	int z;
 } voxelSize;
 
-int RTWidth = 512;
-int RTHeight = 384;
+int RTWidth;
+int RTHeight;
 
 Engine::Engine(WindowSettings& w) : GLFWEngine(w),
 	fbos(FBOManager::GetSingleton()),
@@ -86,6 +86,11 @@ void Engine::Setup()
 {
 
 	clDraw = false;
+
+	RTWidth = Window.Width;
+	RTHeight = Window.Height * 0.75;
+
+	mipLevel = 0;
 
 	voxelSize.x = 128;
 	voxelSize.y = 128;
@@ -144,6 +149,7 @@ void Engine::Setup()
 	zCoord = 1.0f; 	
 	SetupOpenCL();
 	Init3DTexture();
+	CreateRTKernel();
 }
 
 void Engine::CreateRTKernel()
@@ -161,7 +167,8 @@ void Engine::CreateRTKernel()
 		ocl.rtKernel = k.kernel;
 		ocl.rtProgram = k.program;	
 		clSetKernelArg(ocl.rtKernel, 0, sizeof(cl_mem), &ocl.output);
-		clSetKernelArg(ocl.rtKernel, 1, sizeof(cl_mem), &ocl.input);
+		if (ocl.volumeData)
+			clSetKernelArg(ocl.rtKernel, 1, sizeof(cl_mem), &ocl.volumeData);
 		clSetKernelArg(ocl.rtKernel, 2, sizeof(cl_mem), &ocl.paramBuffer);
 		clSetKernelArg(ocl.rtKernel, 3, sizeof(cl_mem), &ocl.rtCounterBuffer);
 	}
@@ -178,6 +185,8 @@ void Engine::CreateRTKernel()
 		ocl.voxKernel = k.kernel;
 		ocl.voxProgram = k.program;
 		clSetKernelArg(ocl.voxKernel, 0, sizeof(cl_mem), &ocl.output);
+		if (ocl.volumeData)
+			clSetKernelArg(ocl.voxKernel, 1, sizeof(cl_mem), &ocl.volumeData);
 	}
 
 }
@@ -293,8 +302,7 @@ void Engine::SetupOpenCL()
 	printf("\n\n");
 
 #pragma endregion
-	
-	CreateRTKernel();
+
 	octreeBuilder.Init(ocl.context, ocl.devices[0]);
 	voxelBuilder.Init(ocl.context, ocl.devices[0]);
 	
@@ -316,7 +324,7 @@ void Engine::UpdateCL()
 
 		resultCL = clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
 
-		size_t globalWorkSize[] = { Window.Width, Window.Height * 0.75 };
+		size_t globalWorkSize[] = { RTWidth, RTHeight };
 
 		int counters[2];
 		memset(counters, 0, sizeof(counters));
@@ -339,13 +347,24 @@ void Engine::DebugDrawVoxelData()
 {
 	cl_int4 size;
 	memcpy(size.s, &voxelSize.x, sizeof(int) * 3);
-	size.s[3] = zCoord * 255;
+	cl_int4 mipOffset;	
+	mipOffset.s[1] = 0;
+	for (int i = 0; i < mipLevel % (voxelBuilder.GetMaxNumMips() + 1); ++i)
+	{
+		mipOffset.s[1] += (size.s[0] * size.s[1] * size.s[2]);
+		size.s[0] /= 2;
+		size.s[1] /= 2;
+		size.s[2] /= 2;
+	}
+	size.s[3] = (int)(fabs(zCoord) * size.s[2]) % size.s[2];
+	mipOffset.s[0] = mipLevel % (voxelBuilder.GetMaxNumMips() + 1);
 	if (ocl.voxKernel)
 	{
 		size_t workDim[2];
-		workDim[0] = Window.Width;
-		workDim[1] = Window.Height * 0.75;
-		clSetKernelArg(ocl.voxKernel, 2, sizeof(cl_int4), &size);
+		workDim[0] = RTWidth;
+		workDim[1] = RTHeight;
+		clSetKernelArg(ocl.voxKernel, 3, sizeof(cl_int4), &size);
+		clSetKernelArg(ocl.voxKernel, 2, sizeof(cl_int4), &mipOffset);
 		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
 		clEnqueueNDRangeKernel(ocl.queue, ocl.voxKernel, 2, NULL, workDim, NULL, 0, NULL, NULL);
 		clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
@@ -364,7 +383,7 @@ void Engine::Display()
 	fbos["RayTrace"]->Bind();
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+	
 	fbos["RayTrace"]->Unbind();
 
 	if (clDraw)
@@ -393,8 +412,8 @@ void Engine::Display()
 	glfwSetWindowTitle(fmter.str().c_str());
 
 	fmter.clear();
-	fmter.parse("Avg iterations: %1%");
-	fmter % averageIterations;
+	fmter.parse("Avg iterations: %1%, MipLevel %2%");
+	fmter % averageIterations % mipLevel;
 
 	PrintText(Vec2(Window.Width, Window.Height), Vec2(-Window.Width, -Window.Height / 2.0), fmter.str().c_str(), Colour::White);
 
@@ -448,6 +467,10 @@ void Engine::KeyPressed(int code)
 		drawMesh1 = !drawMesh1;
 	if (code == 'O')
 		clDraw = !clDraw;
+	if (code == '=')
+		mipLevel += 1;
+	if (code == '-')
+		mipLevel -= 1;
 }
 
 void Engine::KeyReleased(int code)

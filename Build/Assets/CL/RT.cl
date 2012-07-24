@@ -2,6 +2,7 @@
 __constant const sampler_t sampler3D = CLK_FILTER_NEAREST | CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP;
 
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+#include "colour.h"
 
 typedef struct _ray
 {
@@ -148,9 +149,9 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 	ray r;
 	r.origin = (float4)(0.0, 0.0, 0.0, 1.0);
 	r.origin = multMatVec(&r.origin, &(params->invWorldView));
-	r.direction = (float4)((xPos * 2.0) - 1.0, (yPos * 2.0) - 1.0, -1.0, 0.0);
-	r.direction.xyz = normalize(r.direction.xyz);
+	r.direction = (float4)((xPos * 2.0) - 1.0, (yPos * 2.0) - 1.0, -1.0, 0.0);	
 	r.direction = multMatVec(&r.direction, &(params->invWorldView));
+	r.direction.xyz = normalize(r.direction.xyz);
 	
 	int2 coords = (int2)(x, y);	
 
@@ -173,28 +174,26 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 		float3 tMax = offset * stepSize;
 		
 		int3 maxCoord;
-		maxCoord.x = (params->size.x + (stepSize.x * params->size.x)) / 2.0;
-		maxCoord.y = (params->size.y + (stepSize.y * params->size.y)) / 2.0;
-		maxCoord.z = (params->size.z + (stepSize.z * params->size.z)) / 2.0;
+		maxCoord.x = (params->size.x + (stepSize.x * params->size.x)) / 2.0 - 1;
+		maxCoord.y = (params->size.y + (stepSize.y * params->size.y)) / 2.0 - 1;
+		maxCoord.z = (params->size.z + (stepSize.z * params->size.z)) / 2.0 - 1;
 		
-		bool hit = 1;
+		bool hit = 0;
+		//hit = 1;
 		
 		int iter = 0;
-		//float4 colour = params->invSize.xyzx * 128;
-		float4 colour = (float4)(1.0, 0.0, 0.0, 1.0);
-		//float4 colour = (float4)(startPoint.x / 256.0, startPoint.y / 256.0, startPoint.z / 256.0, 1.0);		
+		float4 colour;		
+		//colour = params->invSize.xyzx * 128;
+		//colour = (float4)(1.0, 0.0, 0.0, 1.0);
+		//colour = (float4)(startPoint.x / 128.0, startPoint.y / 128.0, startPoint.z / 128.0, 1.0);	
+		
+		
 		
 		while(!hit && iter < 512)
 		{
 			int pos = startPoint.z * params->size.x * params->size.y + startPoint.y * params->size.x + startPoint.x;
 			
-			colour.x = input[pos] & 0xff000000;
-			colour.y = input[pos] & 0x00ff0000;
-			colour.z = input[pos] & 0x0000ff00;
-			colour.w = input[pos] & 0x000000ff;
-			
-			colour /= 255.0;
-			colour.x = 1.0;
+			colour = UnpackColour(input[pos]);
 			
 			++iter;
 			
@@ -244,5 +243,4 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 			write_imagef(bmp, coords, colour);		
 		}
 	}	
-	
 }

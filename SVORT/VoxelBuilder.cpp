@@ -35,13 +35,55 @@ void VoxelBuilder::SetDebugDraw(bool enabled)
 	debugDraw = enabled;
 }
 
+void VoxelBuilder::GenerateMipmaps()
+{
+	cl_int4 inSizeOffset;
+	cl_int4 outSizeOffset;
+	memcpy(inSizeOffset.s, dims, sizeof(int) * 3);
+	memcpy(outSizeOffset.s, dims, sizeof(int) * 3);
+
+	inSizeOffset.s[3] = 0;
+	outSizeOffset.s[3] = inSizeOffset.s[0] * inSizeOffset.s[1] * inSizeOffset.s[2];
+
+	clSetKernelArg(ocl.mipKernel, 0, sizeof(cl_mem), &ocl.voxelData);
+
+	for (int i = 0; i < 3; ++i)
+		outSizeOffset.s[i] /= 2;
+
+	for (int i = 0; i < maxMips; ++i)
+	{
+		clFinish(ocl.queue);
+		clSetKernelArg(ocl.mipKernel, 1, sizeof(cl_int4), &inSizeOffset);
+		clSetKernelArg(ocl.mipKernel, 2, sizeof(cl_int4), &outSizeOffset);
+
+		size_t workDim[3] = { outSizeOffset.s[0], outSizeOffset.s[1], outSizeOffset.s[2] };
+
+		clEnqueueNDRangeKernel(ocl.queue, ocl.mipKernel, 3, NULL, workDim, NULL, 0, NULL, NULL);
+
+		outSizeOffset.s[3] += outSizeOffset.s[0] * outSizeOffset.s[1] * outSizeOffset.s[2];
+		inSizeOffset.s[3] += inSizeOffset.s[0] * inSizeOffset.s[1] * inSizeOffset.s[2];		
+
+		for (int j = 0; j < 3; ++j)
+		{
+			outSizeOffset.s[j] /= 2;
+			inSizeOffset.s[j] /= 2;
+		}		
+	}
+}
+
 cl_mem VoxelBuilder::GetVoxelData()
 {
 	return ocl.voxelData;
 }
 
+int VoxelBuilder::GetMaxNumMips()
+{
+	return maxMips;
+}
+
 void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer)
 {
+	memcpy(dims, dimensions, sizeof(int) * 3);
 	cl_int resultCL = 0;
 	printf("Building voxel data\n");
 	printf("Creating output buffer....\n");
@@ -52,7 +94,7 @@ void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer
 	FrameBufferObject* fbo = new FrameBufferObject(dimensions[0], dimensions[1], 0, 0, GL_RGBA, GL_TEXTURE_2D, "vox");
 	fbo->AttachTexture("colour");
 	printf("Creating input buffer....\n");
-	ocl.inputData = clCreateFromGLTexture2D(ocl.context, CL_MEM_READ_WRITE, GL_TEXTURE_2D, 0, fbo->GetTextureID(0), &resultCL);
+	ocl.inputData = clCreateFromGLTexture2D(ocl.context, CL_MEM_READ_ONLY, GL_TEXTURE_2D, 0, fbo->GetTextureID(0), &resultCL);
 	CLGLError(resultCL);
 
 	clSetKernelArg(ocl.fillKernel, 0, sizeof(cl_mem), &ocl.inputData);
@@ -129,7 +171,16 @@ void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer
 	}
 	delete fbo;
 	clReleaseMemObject(ocl.inputData);
-
+	maxMips = 0;
+	int counter = dimensions[0];
+	while(1)
+	{
+		counter /= 2;
+		if (counter == 1)
+			break;
+		++maxMips;
+	}
+	GenerateMipmaps();
 }
 
 void VoxelBuilder::CreateKernels()
