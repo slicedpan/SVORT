@@ -1,3 +1,4 @@
+#pragma once
 
 #include <CL\cl.h>
 #include "Utils.h"

@@ -31,7 +31,7 @@ void main()
 	vec3 diffuse = vec3(0.2, 0.2, 0.2);
 	lightColour = max(lightColour, diffuse);
 
-	out_colour = vec4(lightColour, 1.0);
+	out_colour = vec4(lightColour, 0.33333);
 	
 }
 

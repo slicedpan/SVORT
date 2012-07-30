@@ -6,6 +6,12 @@
 #include <CL\cl_gl.h>
 #include <GL\glew.h>
 #include "CLUtils.h"
+#include "OpenCLStructs.h"
+#include <vector>
+#include "../Build/Assets/CL/Octree.h"
+
+using namespace SVO;
+using SVO::Block;
 
 OctreeBuilder::OctreeBuilder(void)
 {
@@ -24,30 +30,85 @@ void OctreeBuilder::Init(cl_context context, cl_device_id device)
 {	
 	ocl.context = context;
 	ocl.device = device;
-	printf("Creating Octree Builder Kernel\n");
+	cl_int resultCL;
+	printf("Creating command queue for Octree Builder\n");
+	ocl.queue = clCreateCommandQueue(ocl.context, device, 0, &resultCL);
+	CLGLError(resultCL);
 	CreateKernel();
+
+	Block b;
+	memset(&b, 0, sizeof(Block));
+	HostBlock* hb = (HostBlock*)&b;
+	setChildPtr(&b, 2334);
+	setValid(&b, 3);
+	uint ptr = getChildPtr(&b);
+
 }
 
-cl_mem OctreeBuilder::Build(cl_mem inputBuf, int* dimensions)
+void OctreeBuilder::Build(cl_mem inputBuf, int* dimensions, cl_mem octreeInfo, cl_mem voxInfo)
 {
-
-	cl_mem outputBuf;
-	cl_int resultCL;
-
 	int width = dimensions[0], height = dimensions[1], depth = dimensions[2];
+	OctreeInfo oi;
+	VoxelInfo vi;
+	clEnqueueReadBuffer(ocl.queue, octreeInfo, false, 0, sizeof(OctreeInfo), &oi, 0, NULL, NULL);
+	clEnqueueReadBuffer(ocl.queue, voxInfo, false, 0, sizeof(VoxelInfo), &vi, 0, NULL, NULL);
+	clFinish(ocl.queue);
 
-	printf("Texture dimensions: %dx%dx%d\n", width, height, depth);
+	cl_int resultCL;
+	printf("Creating octree data buffer, size %dKB...\n", (sizeof(CLBlock) * vi.numLeafVoxels) / 1024);
+	ocl.octData = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(CLBlock) * vi.numLeafVoxels, NULL, &resultCL);
+	CLGLError(resultCL);
+	size_t workDim[3];
 
-	size_t bufSize = width * height * depth / 4;
-	printf("Buffer size: %d\n", bufSize);
+	printf("Creating counter buffer...\n");
+	cl_mem counters = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(int) * 4, NULL, &resultCL);	
+	CLGLError(resultCL);
 
-	glBindTexture(GL_TEXTURE_3D, 0);
+	int init[4];
+	memset(init, 0, sizeof(init));
+	init[0] = 8;	//this is used as the next available block position
+	clEnqueueWriteBuffer(ocl.queue, counters, false, 0, sizeof(int) * 4, init, 0, NULL, NULL);
+	clFinish(ocl.queue);
 
-	//printf("Creating output buffer...\n");
-	//clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(CLBlock) * width * depth * height * 0.25, NULL, &resultCL);
-	//CLGLError(resultCL);
+	clSetKernelArg(ocl.octKernel, 0, sizeof(cl_mem), &inputBuf);
+	clSetKernelArg(ocl.octKernel, 1, sizeof(cl_mem), &ocl.octData);
+	clSetKernelArg(ocl.octKernel, 2, sizeof(cl_mem), &octreeInfo);
+	clSetKernelArg(ocl.octKernel, 3, sizeof(cl_mem), &counters);
 
-	return outputBuf;;
+	cl_uint baseSize = 2;
+
+	std::vector<HostBlock> blocks;
+	blocks.resize(vi.numLeafVoxels);
+
+	for (int i = 0; i < oi.numLevels; ++i)
+	{
+		workDim[0] = baseSize;
+		workDim[1] = baseSize;
+		workDim[2] = baseSize;				
+		OctParams op;
+		op.inOffset = oi.levelOffset[oi.numLevels - i - 1];
+		op.level = i;
+		clSetKernelArg(ocl.octKernel, 4, sizeof(OctParams), &op);
+		clEnqueueNDRangeKernel(ocl.queue, ocl.octKernel, 3, NULL, workDim, NULL, 0, NULL, NULL);
+		clEnqueueReadBuffer(ocl.queue, ocl.octData, false, 0, sizeof(CLBlock) * vi.numLeafVoxels, &blocks[0], 0, NULL, NULL);
+		clFinish(ocl.queue);
+		baseSize *= 2;
+	}
+
+	clEnqueueReadBuffer(ocl.queue, counters, false, 0, sizeof(int) * 4, init, 0, NULL, NULL);
+	clFinish(ocl.queue);
+
+	int maxPos = 0;
+	int maxOffset = 0;
+	for (int i = 0; i < blocks.size(); ++i)
+	{
+		if (blocks[i].child + i > maxPos)
+			maxPos = blocks[i].child + i;
+		if (blocks[i].child > maxOffset)
+			maxOffset = blocks[i].child;
+	}
+
+	clReleaseMemObject(counters);
 }
 
 void OctreeBuilder::CreateKernel()
@@ -63,4 +124,9 @@ void OctreeBuilder::CreateKernel()
 void OctreeBuilder::ReloadProgram()
 {
 	CreateKernel();
+}
+
+cl_mem OctreeBuilder::GetOctreeData()
+{
+	return ocl.octData;
 }

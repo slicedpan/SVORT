@@ -3,13 +3,13 @@
 #include "colour.h"
 #include "grid.h"
 
-__kernel void Mip(__global int* buffer, int4 inSizeOffset, int4 outSizeOffset)
+__kernel void Mip(__global int* buffer, uint4 inSizeOffset, uint4 outSizeOffset, __global VoxelInfo* voxInfo)
 {
-	int3 coords = (int3)(get_global_id(0), get_global_id(1), get_global_id(2));
-	int inPos = inSizeOffset.w + GetGridOffset(coords * 2, inSizeOffset.xyz);
-	int outPos = outSizeOffset.w + GetGridOffset(coords, outSizeOffset.xyz);
+	uint3 coords = (uint3)(get_global_id(0), get_global_id(1), get_global_id(2));
+	uint inPos = inSizeOffset.w + GetGridOffset(coords * 2, inSizeOffset.xyz);
+	uint outPos = outSizeOffset.w + GetGridOffset(coords, outSizeOffset.xyz);
 	
-	int3 offsets = (int3)(1, inSizeOffset.x, inSizeOffset.x * inSizeOffset.y);
+	uint3 offsets = (uint3)(1, inSizeOffset.x, inSizeOffset.x * inSizeOffset.y);
 	
 	float4 colours[8];
 	colours[0] = UnpackColour(buffer[inPos]);
@@ -36,6 +36,10 @@ __kernel void Mip(__global int* buffer, int4 inSizeOffset, int4 outSizeOffset)
 	
 	if (alpha)
 		totalColour.w = 1.0;
+	else
+	{
+		atom_sub(&voxInfo->numLeafVoxels, 7);
+	}
 	
 	buffer[outPos] = PackColour(totalColour);
 	

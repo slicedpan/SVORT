@@ -13,8 +13,6 @@ class FBOManager;
 class StaticMesh;
 class VoxelOctree;
 
-
-
 class Engine : public GLFWEngine
 {
 public:
@@ -45,6 +43,7 @@ private:
 	bool drawVol;
 	VoxelOctree* vo;
 	bool clDraw;
+	bool voxels;
 	OctreeBuilder octreeBuilder;
 	VoxelBuilder voxelBuilder;
 	struct
@@ -62,7 +61,13 @@ private:
 		cl_mem paramBuffer;
 		cl_mem rtCounterBuffer;	
 		cl_mem volumeData;
-		
+		cl_mem octInfo;
+		cl_mem voxInfo;
+		cl_program octDrawProgram;
+		cl_kernel octDrawKernel;		
+		cl_mem octreeData;
+		cl_kernel octRTKernel;
+		cl_program octRTProgram;
 	} ocl;
 	
 	struct

@@ -76,14 +76,27 @@
     <ClCompile Include="VoxelOctree.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Build\Assets\CL\colour.h" />
+    <ClInclude Include="..\Build\Assets\CL\grid.h" />
+    <ClInclude Include="..\Build\Assets\CL\Octree.h" />
+    <ClInclude Include="..\Build\Assets\CL\RT.h" />
     <ClInclude Include="CLUtils.h" />
     <ClInclude Include="CubeDrawer.h" />
     <ClInclude Include="Engine.h" />
     <ClInclude Include="OctreeBuilder.h" />
+    <ClInclude Include="OpenCLStructs.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="VolumeData.h" />
     <ClInclude Include="VoxelBuilder.h" />
     <ClInclude Include="VoxelOctree.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Build\Assets\CL\DrawOct.cl" />
+    <None Include="..\Build\Assets\CL\DrawVox.cl" />
+    <None Include="..\Build\Assets\CL\FillVolume.cl" />
+    <None Include="..\Build\Assets\CL\mip.cl" />
+    <None Include="..\Build\Assets\CL\Octree.cl" />
+    <None Include="..\Build\Assets\CL\RT.cl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

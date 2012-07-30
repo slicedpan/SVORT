@@ -11,13 +11,14 @@ public:
 	VoxelBuilder(void);
 	~VoxelBuilder(void);
 	void Init(cl_context context, cl_device_id device);
-	void Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer);
+	void Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer, cl_mem octreeInfo);
 	void ReloadProgram();
 	cl_mem GetVoxelData();
 	void SetDebugDrawShader(Shader* shader);
 	void SetDebugDraw(bool enabled);
 	void GenerateMipmaps();
 	int GetMaxNumMips();
+	void Cleanup();
 private:
 	void CreateKernels();
 	struct
@@ -31,7 +32,15 @@ private:
 		cl_mem voxelData;
 		cl_mem inputData;
 		cl_command_queue queue;
+		cl_mem octreeInfo;
 	} ocl;
+	struct
+	{
+		int numVoxels;
+		int numLeafVoxels;
+		int numLevels;
+		int pad;
+	} octInfo;
 	bool debugDraw;
 	Shader* debugDrawShader;
 	int maxMips;

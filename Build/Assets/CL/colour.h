@@ -1,16 +1,16 @@
 
-int PackColour(float4 colour)
+uint PackColour(float4 colour)
 {
 	int4 iCol;
-	iCol.x = (int)(colour.x * 255);
-	iCol.y = (int)(colour.y * 255);
-	iCol.z = (int)(colour.z * 255);
-	iCol.w = (int)(colour.w * 255);
+	iCol.x = (uint)(colour.x * 255);
+	iCol.y = (uint)(colour.y * 255);
+	iCol.z = (uint)(colour.z * 255);
+	iCol.w = (uint)(colour.w * 255);
 	
 	return iCol.w + (iCol.z << 8) + (iCol.y << 16) + (iCol.x << 24);
 }
 
-float4 UnpackColour(int iColour)
+float4 UnpackColour(uint iColour)
 {
 	float4 colour;
 	colour.x = (iColour & 0xff000000) >> 24;

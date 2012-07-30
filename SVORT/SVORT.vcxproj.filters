@@ -18,5 +18,43 @@
     <ClInclude Include="VoxelOctree.h" />
     <ClInclude Include="VoxelBuilder.h" />
     <ClInclude Include="CLUtils.h" />
+    <ClInclude Include="OpenCLStructs.h" />
+    <ClInclude Include="..\Build\Assets\CL\grid.h">
+      <Filter>CL</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Build\Assets\CL\Octree.h">
+      <Filter>CL</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Build\Assets\CL\colour.h">
+      <Filter>CL</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Build\Assets\CL\RT.h">
+      <Filter>CL</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Build\Assets\CL\DrawOct.cl">
+      <Filter>CL</Filter>
+    </None>
+    <None Include="..\Build\Assets\CL\DrawVox.cl">
+      <Filter>CL</Filter>
+    </None>
+    <None Include="..\Build\Assets\CL\FillVolume.cl">
+      <Filter>CL</Filter>
+    </None>
+    <None Include="..\Build\Assets\CL\mip.cl">
+      <Filter>CL</Filter>
+    </None>
+    <None Include="..\Build\Assets\CL\Octree.cl">
+      <Filter>CL</Filter>
+    </None>
+    <None Include="..\Build\Assets\CL\RT.cl">
+      <Filter>CL</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CL">
+      <UniqueIdentifier>{8e9067f7-e794-467e-b2d8-f0c97559390c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

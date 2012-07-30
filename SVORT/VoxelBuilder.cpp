@@ -21,9 +21,26 @@ VoxelBuilder::VoxelBuilder(void)
 
 VoxelBuilder::~VoxelBuilder(void)
 {
+	Cleanup();
+}
+
+void VoxelBuilder::Cleanup()
+{
 	if (ocl.voxelData)
 		clReleaseMemObject(ocl.voxelData);
+	if (ocl.fillKernel)
+		clReleaseKernel(ocl.fillKernel);
+	if (ocl.fillProgram)
+		clReleaseProgram(ocl.fillProgram);
+	if (ocl.mipKernel)
+		clReleaseKernel(ocl.mipKernel);
+	if (ocl.mipProgram)
+		clReleaseProgram(ocl.mipProgram);
+	if (ocl.queue)
+		clReleaseCommandQueue(ocl.queue);
+	memset(&ocl, 0, sizeof(ocl));
 }
+
 
 void VoxelBuilder::SetDebugDrawShader(Shader* shader)
 {
@@ -46,6 +63,7 @@ void VoxelBuilder::GenerateMipmaps()
 	outSizeOffset.s[3] = inSizeOffset.s[0] * inSizeOffset.s[1] * inSizeOffset.s[2];
 
 	clSetKernelArg(ocl.mipKernel, 0, sizeof(cl_mem), &ocl.voxelData);
+	clSetKernelArg(ocl.mipKernel, 3, sizeof(cl_mem), &ocl.octreeInfo);
 
 	for (int i = 0; i < 3; ++i)
 		outSizeOffset.s[i] /= 2;
@@ -55,6 +73,7 @@ void VoxelBuilder::GenerateMipmaps()
 		clFinish(ocl.queue);
 		clSetKernelArg(ocl.mipKernel, 1, sizeof(cl_int4), &inSizeOffset);
 		clSetKernelArg(ocl.mipKernel, 2, sizeof(cl_int4), &outSizeOffset);
+		
 
 		size_t workDim[3] = { outSizeOffset.s[0], outSizeOffset.s[1], outSizeOffset.s[2] };
 
@@ -69,6 +88,9 @@ void VoxelBuilder::GenerateMipmaps()
 			inSizeOffset.s[j] /= 2;
 		}		
 	}
+	clEnqueueReadBuffer(ocl.queue, ocl.octreeInfo, false, 0, sizeof(octInfo), &octInfo, 0, NULL, NULL);
+	clFinish(ocl.queue);
+	printf("Total number of voxels: %d\nTotal number of leaf voxels: %d\nDetail levels: %d\nCompression ratio: %lf\n", octInfo.numVoxels, octInfo.numLeafVoxels, octInfo.numLevels, (float)octInfo.numVoxels / (float) octInfo.numLeafVoxels);
 }
 
 cl_mem VoxelBuilder::GetVoxelData()
@@ -81,12 +103,13 @@ int VoxelBuilder::GetMaxNumMips()
 	return maxMips;
 }
 
-void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer)
+void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer, cl_mem octreeInfo)
 {
 	memcpy(dims, dimensions, sizeof(int) * 3);
 	cl_int resultCL = 0;
-	printf("Building voxel data\n");
+	printf("\n\nBuilding voxel data\n");
 	printf("Creating output buffer....\n");
+	ocl.octreeInfo = octreeInfo;
 	if (!ocl.voxelData)
 		ocl.voxelData = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(unsigned int) * dimensions[0] * dimensions[1] * dimensions[2] * 1.15, NULL, &resultCL);
 	CLGLError(resultCL);
@@ -106,6 +129,7 @@ void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer
 	float zDist = mesh->SubMeshes[0].Max[2] - mesh->SubMeshes[0].Min[2];
 	float increment = zDist / dimensions[2];
 	zDist = - increment;
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
 	for (int i = 0; i < dimensions[2]; ++i)
 	{
@@ -171,15 +195,21 @@ void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer
 	}
 	delete fbo;
 	clReleaseMemObject(ocl.inputData);
-	maxMips = 0;
+	maxMips = 1;
 	int counter = dimensions[0];
+	octInfo.numLeafVoxels = 0;
 	while(1)
 	{
+		octInfo.numLeafVoxels += counter * counter * counter;
 		counter /= 2;
 		if (counter == 1)
 			break;
 		++maxMips;
-	}
+	}	
+	octInfo.numVoxels = octInfo.numLeafVoxels;
+	octInfo.numLevels = maxMips;
+	clEnqueueWriteBuffer(ocl.queue, ocl.octreeInfo, false, 0, sizeof(octInfo), &octInfo, 0, NULL, NULL);
+	clFinish(ocl.queue);
 	GenerateMipmaps();
 }
 

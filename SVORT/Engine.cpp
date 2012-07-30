@@ -21,10 +21,14 @@
 #include "CL\cl_gl.h"
 #include "GLGUI\Primitives.h"
 #include "CLUtils.h"
+#include "OpenCLStructs.h"
+#include "../Build/Assets/CL/Octree.h"
 
 #ifdef _WIN32
 #include <Windows.h>
 #endif
+
+using namespace SVO;
 
 struct _vs
 {
@@ -76,8 +80,21 @@ void Engine::Init3DTexture()
 	if (!drawMesh1)
 		mesh = mesh2;  	
 
-	voxelBuilder.Build(mesh, &voxelSize.x, shaders["Basic"]);
+	voxelBuilder.Build(mesh, &voxelSize.x, shaders["Basic"], ocl.voxInfo);
 	ocl.volumeData = voxelBuilder.GetVoxelData();	
+
+	OctreeInfo oi;
+	oi.numLevels = voxelBuilder.GetMaxNumMips();
+	oi.levelSize[0] = voxelSize.x;
+	oi.levelOffset[0] = 0;
+	for (int i = 1; i < oi.numLevels; ++i)
+	{
+		oi.levelSize[i] = oi.levelSize[i - 1] / 2;
+		oi.levelOffset[i] = oi.levelOffset[i - 1] + (oi.levelSize[i - 1] * oi.levelSize[i - 1] * oi.levelSize[i - 1]);
+	}
+	clEnqueueWriteBuffer(ocl.queue, ocl.octInfo, false, 0, sizeof(OctreeInfo), &oi, 0, NULL, NULL);
+	clFinish(ocl.queue);	
+
 	if (ocl.voxKernel)
 		clSetKernelArg(ocl.voxKernel, 1, sizeof(cl_mem), &ocl.volumeData);
 }
@@ -86,15 +103,16 @@ void Engine::Setup()
 {
 
 	clDraw = false;
+	voxels = true;
 
 	RTWidth = Window.Width;
 	RTHeight = Window.Height * 0.75;
 
 	mipLevel = 0;
 
-	voxelSize.x = 128;
-	voxelSize.y = 128;
-	voxelSize.z = 128;
+	voxelSize.x = 256;
+	voxelSize.y = 256;
+	voxelSize.z = 256;
 	
 	glGenTextures(1, &tex3D);
 	
@@ -149,6 +167,10 @@ void Engine::Setup()
 	zCoord = 1.0f; 	
 	SetupOpenCL();
 	Init3DTexture();
+	octreeBuilder.Build(ocl.volumeData, &voxelSize.x, ocl.octInfo, ocl.voxInfo);
+	ocl.octreeData = octreeBuilder.GetOctreeData();
+	if (ocl.octRTKernel)
+		clSetKernelArg(ocl.octRTKernel, 1, sizeof(cl_mem), &ocl.octreeData);
 	CreateRTKernel();
 }
 
@@ -173,6 +195,24 @@ void Engine::CreateRTKernel()
 		clSetKernelArg(ocl.rtKernel, 3, sizeof(cl_mem), &ocl.rtCounterBuffer);
 	}
 
+	if (ocl.octRTKernel)
+		clReleaseKernel(ocl.octRTKernel);
+	if (ocl.octRTProgram)
+		clReleaseProgram(ocl.octRTProgram);
+
+	k = CreateKernelFromFile("Assets/CL/RT.cl", "OctRT", ocl.context, ocl.devices[0]);
+
+	if (k.ok)
+	{
+		ocl.octRTKernel = k.kernel;
+		ocl.octRTProgram = k.program;
+		clSetKernelArg(ocl.octRTKernel, 0, sizeof(cl_mem), &ocl.output);
+		if (ocl.octreeData)
+			clSetKernelArg(ocl.octRTKernel, 1, sizeof(cl_mem), &ocl.octreeData);
+		clSetKernelArg(ocl.octRTKernel, 2, sizeof(cl_mem), &ocl.paramBuffer);
+		clSetKernelArg(ocl.octRTKernel, 3, sizeof(cl_mem), &ocl.rtCounterBuffer);
+	}
+
 	if (ocl.voxKernel)
 		clReleaseKernel(ocl.voxKernel);
 	if (ocl.voxProgram)
@@ -187,6 +227,17 @@ void Engine::CreateRTKernel()
 		clSetKernelArg(ocl.voxKernel, 0, sizeof(cl_mem), &ocl.output);
 		if (ocl.volumeData)
 			clSetKernelArg(ocl.voxKernel, 1, sizeof(cl_mem), &ocl.volumeData);
+	}
+
+	k = CreateKernelFromFile("Assets/CL/DrawOct.cl", "DrawOctree", ocl.context, ocl.devices[0]);
+
+	if (k.ok)
+	{
+		ocl.octDrawKernel = k.kernel;
+		ocl.octDrawProgram = k.program;
+		clSetKernelArg(ocl.octDrawKernel, 0, sizeof(cl_mem), &ocl.output);
+		if (ocl.octreeData)
+			clSetKernelArg(ocl.octDrawKernel, 1, sizeof(cl_mem), &ocl.octreeData);
 	}
 
 }
@@ -299,6 +350,14 @@ void Engine::SetupOpenCL()
 	ocl.output = clCreateFromGLTexture2D(ocl.context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, fbos["RayTrace"]->GetTextureID(0), &resultCL);
 	CLGLError(resultCL);
 
+	printf("Creating Voxel Info buffer...\n");
+	ocl.voxInfo = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(VoxelInfo), NULL, &resultCL);
+	CLGLError(resultCL);
+
+	printf("Creating Octree Info buffer...\n");
+	ocl.octInfo = clCreateBuffer(ocl.context, CL_MEM_READ_ONLY, sizeof(OctreeInfo), NULL, &resultCL);
+	CLGLError(resultCL);
+
 	printf("\n\n");
 
 #pragma endregion
@@ -310,66 +369,92 @@ void Engine::SetupOpenCL()
 
 void Engine::UpdateCL()
 {	
-	if (ocl.rtKernel)
+	
+	Mat4 world(16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f);
+	Mat4 invWorldView = inv(world) * cam->GetTransform();
+
+	memcpy(&RTParams.sizeX, &voxelSize.x, sizeof(int) * 3);
+	memcpy(RTParams.invWorldView, invWorldView.Ref(), sizeof(float) * 16);
+	RTParams.invSize[0] = 1.0 / voxelSize.x;
+	RTParams.invSize[1] = 1.0 / voxelSize.y;
+	RTParams.invSize[2] = 1.0 / voxelSize.z;
+
+	clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+
+	size_t globalWorkSize[] = { RTWidth, RTHeight };
+
+	int counters[2];
+	memset(counters, 0, sizeof(counters));
+
+	clEnqueueWriteBuffer(ocl.queue, ocl.paramBuffer, false, 0, sizeof(RTParams), &RTParams, 0, NULL, NULL);
+	clEnqueueWriteBuffer(ocl.queue, ocl.rtCounterBuffer, false, 0, sizeof(int) * 2, &counters, 0, NULL, NULL);
+
+	if (voxels)
 	{
-		cl_int resultCL;
-		Mat4 world(16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f);
-		Mat4 invWorldView = inv(world) * cam->GetTransform();
-
-		memcpy(&RTParams.sizeX, &voxelSize.x, sizeof(int) * 3);
-		memcpy(RTParams.invWorldView, invWorldView.Ref(), sizeof(float) * 16);
-		RTParams.invSize[0] = 1.0 / voxelSize.x;
-		RTParams.invSize[1] = 1.0 / voxelSize.y;
-		RTParams.invSize[2] = 1.0 / voxelSize.z;
-
-		resultCL = clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
-
-		size_t globalWorkSize[] = { RTWidth, RTHeight };
-
-		int counters[2];
-		memset(counters, 0, sizeof(counters));
-
-		clEnqueueWriteBuffer(ocl.queue, ocl.paramBuffer, false, 0, sizeof(RTParams), &RTParams, 0, NULL, NULL);
-		clEnqueueWriteBuffer(ocl.queue, ocl.rtCounterBuffer, false, 0, sizeof(int) * 2, &counters, 0, NULL, NULL);
-
-		clEnqueueNDRangeKernel(ocl.queue, ocl.rtKernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL);
-
-		resultCL = clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
-
-		clEnqueueReadBuffer(ocl.queue, ocl.rtCounterBuffer, true, 0, sizeof(int) * 2, &counters, 0, NULL, NULL);
-
-		averageIterations = (float)counters[1] / (float)counters[0];
-		
+		if (ocl.rtKernel)
+		{
+			clEnqueueNDRangeKernel(ocl.queue, ocl.rtKernel, 2, NULL, globalWorkSize, NULL, 0, NULL, NULL);		
+		}
 	}
+	else
+	{
+		if (ocl.octRTKernel)
+		{
+			clEnqueueNDRangeKernel(ocl.queue, ocl.octRTKernel, 2, NULL, globalWorkSize, 0, NULL, NULL, NULL);
+		}
+	}
+
+	clEnqueueReadBuffer(ocl.queue, ocl.rtCounterBuffer, true, 0, sizeof(int) * 2, &counters, 0, NULL, NULL);
+	averageIterations = (float)counters[1] / (float)counters[0];
+
 }
 
 void Engine::DebugDrawVoxelData()
 {
-	cl_int4 size;
-	memcpy(size.s, &voxelSize.x, sizeof(int) * 3);
-	cl_int4 mipOffset;	
+	cl_uint4 size;	
+	size.s[0] = voxelSize.x;
+	size.s[1] = voxelSize.y;
+	size.s[2] = voxelSize.z;
+	cl_uint4 mipOffset;	
 	mipOffset.s[1] = 0;
-	for (int i = 0; i < mipLevel % (voxelBuilder.GetMaxNumMips() + 1); ++i)
+	for (int i = 0; i < mipLevel % voxelBuilder.GetMaxNumMips(); ++i)
 	{
 		mipOffset.s[1] += (size.s[0] * size.s[1] * size.s[2]);
 		size.s[0] /= 2;
 		size.s[1] /= 2;
 		size.s[2] /= 2;
 	}
-	size.s[3] = (int)(fabs(zCoord) * size.s[2]) % size.s[2];
-	mipOffset.s[0] = mipLevel % (voxelBuilder.GetMaxNumMips() + 1);
-	if (ocl.voxKernel)
-	{
-		size_t workDim[2];
-		workDim[0] = RTWidth;
-		workDim[1] = RTHeight;
-		clSetKernelArg(ocl.voxKernel, 3, sizeof(cl_int4), &size);
-		clSetKernelArg(ocl.voxKernel, 2, sizeof(cl_int4), &mipOffset);
-		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
-		clEnqueueNDRangeKernel(ocl.queue, ocl.voxKernel, 2, NULL, workDim, NULL, 0, NULL, NULL);
-		clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+	size.s[3] = (uint)(fabs(zCoord) * size.s[2]) % size.s[2];
+	mipOffset.s[0] = mipLevel % voxelBuilder.GetMaxNumMips();
 
+	size_t workDim[2];
+	workDim[0] = RTWidth;
+	workDim[1] = RTHeight;
+
+	if (voxels)
+	{			
+		if (ocl.voxKernel)
+		{			
+			clSetKernelArg(ocl.voxKernel, 3, sizeof(cl_uint4), &size);
+			clSetKernelArg(ocl.voxKernel, 2, sizeof(cl_uint4), &mipOffset);
+			clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+			clEnqueueNDRangeKernel(ocl.queue, ocl.voxKernel, 2, NULL, workDim, NULL, 0, NULL, NULL);
+			clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);			
+		}
 	}
+	else
+	{
+		if (ocl.octDrawKernel)
+		{
+			mipOffset.s[2] = voxelBuilder.GetMaxNumMips() - mipOffset.s[0] - 1;
+			clSetKernelArg(ocl.octDrawKernel, 3, sizeof(cl_uint4), &size);
+			clSetKernelArg(ocl.octDrawKernel, 2, sizeof(cl_uint4), &mipOffset);
+			clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+			clEnqueueNDRangeKernel(ocl.queue, ocl.octDrawKernel, 2, NULL, workDim, NULL, 0, NULL, NULL);
+			clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+		}
+	}
+	clFinish(ocl.queue);
 }
 
 void Engine::Display()
@@ -400,14 +485,19 @@ void Engine::Display()
 	glBindTexture(GL_TEXTURE_2D, fbos["RayTrace"]->GetTextureID(0));
 	QuadDrawer::DrawQuad(Vec2(-1.0, -0.5), Vec2(1.0, 1.0));
 
-	boost::format fmter("FPS: %1%, CamPos: %2%, %3%, %4%, Pitch: %5%, Yaw: %6%, Z Coord: %7%, %8%, average iterations: %9%");
-	fmter % CurrentFPS % cam->Position[0] % cam->Position[1] % cam->Position[2] % cam->Pitch % cam->Yaw % zCoord;
+	boost::format fmter("FPS: %1%, Z Coord: %2%, %3%, average iterations: %4%, %5%");
+	fmter % CurrentFPS % zCoord;
 	if (clDraw)
-		fmter % "OpenCL";
+		fmter % "Ray Tracer";
 	else
-		fmter % "OpenGL";
+		fmter % "View Raw Data";
 
 	fmter % averageIterations;
+
+	if (voxels)
+		fmter % "Voxel Data";
+	else
+		fmter % "Octree Data";
 
 	glfwSetWindowTitle(fmter.str().c_str());
 
@@ -460,7 +550,7 @@ void Engine::KeyPressed(int code)
 		voxelBuilder.ReloadProgram();
 	}
 	if (code == 'V')
-		drawQuad = !drawQuad;
+		voxels = !voxels;
 	if (code == 'Z')
 		Init3DTexture();
 	if (code == 'M')
