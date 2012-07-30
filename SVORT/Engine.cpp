@@ -105,14 +105,14 @@ void Engine::Setup()
 	clDraw = false;
 	voxels = true;
 
-	RTWidth = Window.Width;
-	RTHeight = Window.Height * 0.75;
+	RTWidth = Window.Width * 0.75;
+	RTHeight = Window.Height;
 
 	mipLevel = 0;
 
-	voxelSize.x = 256;
-	voxelSize.y = 256;
-	voxelSize.z = 256;
+	voxelSize.x = 64;
+	voxelSize.y = 64;
+	voxelSize.z = 64;
 	
 	glGenTextures(1, &tex3D);
 	
@@ -147,10 +147,6 @@ void Engine::Setup()
 
 	printf("Creating FBOS... ");
 
-	fbos.AddFBO(new FrameBufferObject(Window.Width / 2, Window.Height, 24, 0, GL_RGBA, GL_TEXTURE_2D, "DVR"));
-	fbos["DVR"]->AttachTexture("colour");
-	fbos.AddFBO(new FrameBufferObject(voxelSize.x, voxelSize.y, 24, 0, GL_RGBA, GL_TEXTURE_2D, "Voxel"));
-	fbos["Voxel"]->AttachTexture("colour");
 	fbos.AddFBO(new FrameBufferObject(RTWidth, RTHeight, 0, 0, GL_RGBA, GL_TEXTURE_2D, "RayTrace"));
 	fbos["RayTrace"]->AttachTexture("colour", GL_LINEAR, GL_LINEAR);
 
@@ -483,7 +479,7 @@ void Engine::Display()
 	glActiveTexture(GL_TEXTURE0);
 
 	glBindTexture(GL_TEXTURE_2D, fbos["RayTrace"]->GetTextureID(0));
-	QuadDrawer::DrawQuad(Vec2(-1.0, -0.5), Vec2(1.0, 1.0));
+	QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(0.5, 1.0));
 
 	boost::format fmter("FPS: %1%, Z Coord: %2%, %3%, average iterations: %4%, %5%");
 	fmter % CurrentFPS % zCoord;
@@ -499,13 +495,40 @@ void Engine::Display()
 	else
 		fmter % "Octree Data";
 
-	glfwSetWindowTitle(fmter.str().c_str());
+	Vec2 windowSize(Window.Width, Window.Height);
+	
+	fmter.clear();
+	fmter.parse("FPS: %1%");
+	fmter % CurrentFPS;
+	PrintText(windowSize, Vec2(Window.Width * 0.5f, Window.Height), fmter.str().c_str(), Colour::White);
 
 	fmter.clear();
-	fmter.parse("Avg iterations: %1%, MipLevel %2%");
-	fmter % averageIterations % mipLevel;
+	fmter.parse("Z Coord: %1%");
+	fmter % zCoord;
+	PrintText(windowSize, Vec2(Window.Width * 0.5f, Window.Height - 40), fmter.str().c_str(), Colour::White);
 
-	PrintText(Vec2(Window.Width, Window.Height), Vec2(-Window.Width, -Window.Height / 2.0), fmter.str().c_str(), Colour::White);
+	fmter.clear();
+	fmter.parse("%1%");
+	if (clDraw)
+		fmter % "Ray Tracer";
+	else
+		fmter % "View Raw Data";
+	PrintText(windowSize, Vec2(Window.Width * 0.5f, Window.Height - 80), fmter.str().c_str(), Colour::White);
+
+	fmter.clear();
+	fmter.parse("%1%");
+	if (voxels)
+		fmter % "Voxel Data";
+	else
+		fmter % "Octree Data";
+	PrintText(windowSize, Vec2(Window.Width * 0.5f, Window.Height - 120), fmter.str().c_str(), Colour::White);
+
+	fmter.clear();
+	fmter.parse("Avg. iterations: %1%");
+	fmter % averageIterations;
+	PrintText(windowSize, Vec2(Window.Width * 0.5f, Window.Height - 160), fmter.str().c_str(), Colour::White);
+
+	glfwSetWindowTitle(fmter.str().c_str());	
 
 }
 
