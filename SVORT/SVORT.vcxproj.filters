@@ -6,7 +6,6 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="OctreeBuilder.cpp" />
     <ClCompile Include="Utils.cpp" />
-    <ClCompile Include="VoxelOctree.cpp" />
     <ClCompile Include="VoxelBuilder.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -15,7 +14,6 @@
     <ClInclude Include="OctreeBuilder.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="VolumeData.h" />
-    <ClInclude Include="VoxelOctree.h" />
     <ClInclude Include="VoxelBuilder.h" />
     <ClInclude Include="CLUtils.h" />
     <ClInclude Include="OpenCLStructs.h" />
@@ -29,6 +27,21 @@
       <Filter>CL</Filter>
     </ClInclude>
     <ClInclude Include="..\Build\Assets\CL\RT.h">
+      <Filter>CL</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Build\Assets\CL\CLDefsBegin.h">
+      <Filter>CL</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Build\Assets\CL\CLDefsEnd.h">
+      <Filter>CL</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Build\Assets\CL\OctRT.h">
+      <Filter>CL</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Build\Assets\CL\GenRay.h">
+      <Filter>CL</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Build\Assets\CL\RayIntersect.h">
       <Filter>CL</Filter>
     </ClInclude>
   </ItemGroup>
@@ -49,6 +62,9 @@
       <Filter>CL</Filter>
     </None>
     <None Include="..\Build\Assets\CL\RT.cl">
+      <Filter>CL</Filter>
+    </None>
+    <None Include="..\Build\Assets\CL\OctRT.cl">
       <Filter>CL</Filter>
     </None>
   </ItemGroup>

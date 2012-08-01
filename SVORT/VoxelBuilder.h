@@ -30,9 +30,9 @@ private:
 		cl_kernel mipKernel;
 		cl_program mipProgram;
 		cl_mem voxelData;
-		cl_mem inputData;
+		cl_mem inputData[2];
 		cl_command_queue queue;
-		cl_mem octreeInfo;
+		cl_mem octreeInfo;		
 	} ocl;
 	struct
 	{

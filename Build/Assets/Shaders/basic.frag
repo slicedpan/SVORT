@@ -4,6 +4,7 @@ vec3 lightPos = vec3(0, 4, 0);
 float lightRadius = 20;
 
 layout(location = 0)out vec4 out_colour;
+layout(location = 1)out vec4 out_normal;
 smooth in vec3 oNormal;
 smooth in vec3 worldPos;
 
@@ -32,6 +33,6 @@ void main()
 	lightColour = max(lightColour, diffuse);
 
 	out_colour = vec4(lightColour, 0.33333);
-	
+	out_normal = vec4(oNormal, 1.0);
 }
 

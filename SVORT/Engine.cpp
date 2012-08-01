@@ -17,12 +17,13 @@
 #include <boost\format.hpp>
 #include "Utils.h"
 #include "StaticMesh.h"
-#include "VoxelOctree.h"
 #include "CL\cl_gl.h"
 #include "GLGUI\Primitives.h"
 #include "CLUtils.h"
 #include "OpenCLStructs.h"
-#include "../Build/Assets/CL/Octree.h"
+#include "CLDefsBegin.h"
+#include "Octree.h"
+#include "CLDefsEnd.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -36,6 +37,8 @@ struct _vs
 	int y;
 	int z;
 } voxelSize;
+
+
 
 int RTWidth;
 int RTHeight;
@@ -100,7 +103,8 @@ void Engine::Init3DTexture()
 }
 
 void Engine::Setup()
-{
+{	
+	
 
 	clDraw = false;
 	voxels = true;
@@ -110,9 +114,9 @@ void Engine::Setup()
 
 	mipLevel = 0;
 
-	voxelSize.x = 64;
-	voxelSize.y = 64;
-	voxelSize.z = 64;
+	voxelSize.x = 16;
+	voxelSize.y = 16;
+	voxelSize.z = 16;
 	
 	glGenTextures(1, &tex3D);
 	
@@ -196,7 +200,7 @@ void Engine::CreateRTKernel()
 	if (ocl.octRTProgram)
 		clReleaseProgram(ocl.octRTProgram);
 
-	k = CreateKernelFromFile("Assets/CL/RT.cl", "OctRT", ocl.context, ocl.devices[0]);
+	k = CreateKernelFromFile("Assets/CL/OctRT.cl", "OctRT", ocl.context, ocl.devices[0]);
 
 	if (k.ok)
 	{
@@ -402,6 +406,7 @@ void Engine::UpdateCL()
 
 	clEnqueueReadBuffer(ocl.queue, ocl.rtCounterBuffer, true, 0, sizeof(int) * 2, &counters, 0, NULL, NULL);
 	averageIterations = (float)counters[1] / (float)counters[0];
+	clFinish(ocl.queue);
 
 }
 
@@ -470,9 +475,7 @@ void Engine::Display()
 	if (clDraw)
 		UpdateCL();
 	else
-		DebugDrawVoxelData();	
-
-	clFinish(ocl.queue);
+		DebugDrawVoxelData();		
 
 	shaders["Copy"]->Use();
 	shaders["Copy"]->Uniforms["baseTex"].SetValue(0);

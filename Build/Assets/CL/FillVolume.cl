@@ -3,7 +3,7 @@
 
 __constant const sampler_t sampler2D = CLK_FILTER_NEAREST | CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP;
 
-__kernel void FillVolume(image2d_t input, __global int* output, uint4 sizeAndLayer)
+__kernel void FillVolume(image2d_t input, image2d_t normals, __global int* output, uint4 sizeAndLayer)
 {
 	int x = get_global_id(0);
 	int y = get_global_id(1);

@@ -43,7 +43,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>$(AMDAPPSDKROOT)\include;C:\stuff\boost_1_49_0;C:\stuff\boost_1_48_0;C:\Users\Owen\Documents\Visual Studio 2010\Projects\UtilTest\GLUtils;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(AMDAPPSDKROOT)\include;C:\stuff\boost_1_49_0;C:\stuff\boost_1_48_0;C:\Users\Owen\Documents\Visual Studio 2010\Projects\UtilTest\GLUtils;$(SolutionDir)\Build\Assets\CL\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <CompileAsManaged>false</CompileAsManaged>
     </ClCompile>
     <Link>
@@ -73,12 +73,16 @@
     <ClCompile Include="OctreeBuilder.cpp" />
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="VoxelBuilder.cpp" />
-    <ClCompile Include="VoxelOctree.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Build\Assets\CL\CLDefsBegin.h" />
+    <ClInclude Include="..\Build\Assets\CL\CLDefsEnd.h" />
     <ClInclude Include="..\Build\Assets\CL\colour.h" />
+    <ClInclude Include="..\Build\Assets\CL\GenRay.h" />
     <ClInclude Include="..\Build\Assets\CL\grid.h" />
     <ClInclude Include="..\Build\Assets\CL\Octree.h" />
+    <ClInclude Include="..\Build\Assets\CL\OctRT.h" />
+    <ClInclude Include="..\Build\Assets\CL\RayIntersect.h" />
     <ClInclude Include="..\Build\Assets\CL\RT.h" />
     <ClInclude Include="CLUtils.h" />
     <ClInclude Include="CubeDrawer.h" />
@@ -88,7 +92,6 @@
     <ClInclude Include="Utils.h" />
     <ClInclude Include="VolumeData.h" />
     <ClInclude Include="VoxelBuilder.h" />
-    <ClInclude Include="VoxelOctree.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Build\Assets\CL\DrawOct.cl" />
@@ -96,6 +99,7 @@
     <None Include="..\Build\Assets\CL\FillVolume.cl" />
     <None Include="..\Build\Assets\CL\mip.cl" />
     <None Include="..\Build\Assets\CL\Octree.cl" />
+    <None Include="..\Build\Assets\CL\OctRT.cl" />
     <None Include="..\Build\Assets\CL\RT.cl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

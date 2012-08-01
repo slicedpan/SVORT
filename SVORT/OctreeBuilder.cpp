@@ -8,10 +8,11 @@
 #include "CLUtils.h"
 #include "OpenCLStructs.h"
 #include <vector>
-#include "../Build/Assets/CL/Octree.h"
+#include "CLDefsBegin.h"
+#include "OctRT.h"
+#include "CLDefsEnd.h"
 
 using namespace SVO;
-using SVO::Block;
 
 OctreeBuilder::OctreeBuilder(void)
 {
@@ -35,13 +36,6 @@ void OctreeBuilder::Init(cl_context context, cl_device_id device)
 	ocl.queue = clCreateCommandQueue(ocl.context, device, 0, &resultCL);
 	CLGLError(resultCL);
 	CreateKernel();
-
-	Block b;
-	memset(&b, 0, sizeof(Block));
-	HostBlock* hb = (HostBlock*)&b;
-	setChildPtr(&b, 2334);
-	setValid(&b, 3);
-	uint ptr = getChildPtr(&b);
 
 }
 
@@ -78,7 +72,7 @@ void OctreeBuilder::Build(cl_mem inputBuf, int* dimensions, cl_mem octreeInfo, c
 	cl_uint baseSize = 2;
 
 	std::vector<HostBlock> blocks;
-	blocks.resize(vi.numLeafVoxels);
+	blocks.resize(1);
 
 	for (int i = 0; i < oi.numLevels; ++i)
 	{
@@ -89,26 +83,42 @@ void OctreeBuilder::Build(cl_mem inputBuf, int* dimensions, cl_mem octreeInfo, c
 		op.inOffset = oi.levelOffset[oi.numLevels - i - 1];
 		op.level = i;
 		clSetKernelArg(ocl.octKernel, 4, sizeof(OctParams), &op);
-		clEnqueueNDRangeKernel(ocl.queue, ocl.octKernel, 3, NULL, workDim, NULL, 0, NULL, NULL);
-		clEnqueueReadBuffer(ocl.queue, ocl.octData, false, 0, sizeof(CLBlock) * vi.numLeafVoxels, &blocks[0], 0, NULL, NULL);
+		clEnqueueNDRangeKernel(ocl.queue, ocl.octKernel, 3, NULL, workDim, NULL, 0, NULL, NULL);		
 		clFinish(ocl.queue);
 		baseSize *= 2;
 	}
 
 	clEnqueueReadBuffer(ocl.queue, counters, false, 0, sizeof(int) * 4, init, 0, NULL, NULL);
+	//clEnqueueReadBuffer(ocl.queue, ocl.octData, false, 0, sizeof(CLBlock) * vi.numLeafVoxels, &blocks[0], 0, NULL, NULL);
 	clFinish(ocl.queue);
 
-	int maxPos = 0;
-	int maxOffset = 0;
-	for (int i = 0; i < blocks.size(); ++i)
-	{
-		if (blocks[i].child + i > maxPos)
-			maxPos = blocks[i].child + i;
-		if (blocks[i].child > maxOffset)
-			maxOffset = blocks[i].child;
-	}
+	//SVO::Ray r = {{0.0, 0.0, 0.0, 1.0}, {0.0, 0.0, -1.0, 0.0}};
+	//Params p;
+	//p.size.s[0] = 16;
+	//p.size.s[1] = 16;
+	//p.size.s[2] = 16;
 
+	//Counters c;
+	//c.numSamples = 0;
+	//c.total = 0;
+
+	//cl_uint3 start = {{7, 15, 0}};
+
+	//SVO::Block* input = (SVO::Block*)&blocks[0];
+
+	//VoxelStack vs;
+	//initStack(&vs);
+
+	//uint curPos = findStartPoint(&start, input, &vs, &p, &c, 32);	
+	//if (curPos & 2147483648)
+	//{
+	//	int i = 0;
+	//}
+	//cl_uint3 end = {{7, 15, 6}};
 	clReleaseMemObject(counters);
+
+
+
 }
 
 void OctreeBuilder::CreateKernel()

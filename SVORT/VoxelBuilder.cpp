@@ -116,12 +116,18 @@ void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer
 	
 	FrameBufferObject* fbo = new FrameBufferObject(dimensions[0], dimensions[1], 0, 0, GL_RGBA, GL_TEXTURE_2D, "vox");
 	fbo->AttachTexture("colour");
-	printf("Creating input buffer....\n");
-	ocl.inputData = clCreateFromGLTexture2D(ocl.context, CL_MEM_READ_ONLY, GL_TEXTURE_2D, 0, fbo->GetTextureID(0), &resultCL);
+	fbo->AttachTexture("normal");
+	fbo->SetDrawBuffers(true);
+	printf("Creating colour input buffer....\n");
+	ocl.inputData[0] = clCreateFromGLTexture2D(ocl.context, CL_MEM_READ_ONLY, GL_TEXTURE_2D, 0, fbo->GetTextureID("colour"), &resultCL);
+	CLGLError(resultCL);
+	printf("Creating normal input buffer....\n");
+	ocl.inputData[1] = clCreateFromGLTexture2D(ocl.context, CL_MEM_READ_ONLY, GL_TEXTURE_2D, 0, fbo->GetTextureID("normal"), &resultCL);
 	CLGLError(resultCL);
 
-	clSetKernelArg(ocl.fillKernel, 0, sizeof(cl_mem), &ocl.inputData);
-	clSetKernelArg(ocl.fillKernel, 1, sizeof(cl_mem), &ocl.voxelData);
+	clSetKernelArg(ocl.fillKernel, 0, sizeof(cl_mem), &(ocl.inputData[0]));
+	clSetKernelArg(ocl.fillKernel, 1, sizeof(cl_mem), &(ocl.inputData[1]));
+	clSetKernelArg(ocl.fillKernel, 2, sizeof(cl_mem), &ocl.voxelData);
 
 	cl_int4 size;
 	memcpy(size.s, dimensions, sizeof(int) * 3);
@@ -165,7 +171,7 @@ void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer
 		if (debugDraw && debugDrawShader)
 		{
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, fbo->GetTextureID(0));
+			glBindTexture(GL_TEXTURE_2D, fbo->GetTextureID("normal"));
 			debugDrawShader->Use();
 			debugDrawShader->Uniforms["baseTex"].SetValue(0);
 			QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(1.0, 1.0), Vec2(1.0, 1.0));
@@ -174,15 +180,15 @@ void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer
 		glFinish();
 		glfwSwapBuffers();
 
-		clSetKernelArg(ocl.fillKernel, 2, sizeof(cl_int4), &size);		
-		clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.inputData, 0, NULL, NULL);
+		clSetKernelArg(ocl.fillKernel, 3, sizeof(cl_int4), &size);		
+		clEnqueueAcquireGLObjects(ocl.queue, 2, ocl.inputData, 0, NULL, NULL);
 
 		size_t workSize[2];
 		workSize[0] = dimensions[0];
 		workSize[1] = dimensions[1];
 
 		clEnqueueNDRangeKernel(ocl.queue, ocl.fillKernel, 2, NULL, workSize, NULL, 0, NULL, NULL);
-		clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.inputData, 0, NULL, NULL);			
+		clEnqueueReleaseGLObjects(ocl.queue, 2, ocl.inputData, 0, NULL, NULL);			
 
 		clFinish(ocl.queue);
 
@@ -194,7 +200,8 @@ void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer
 
 	}
 	delete fbo;
-	clReleaseMemObject(ocl.inputData);
+	clReleaseMemObject(ocl.inputData[0]);
+	clReleaseMemObject(ocl.inputData[1]);
 	maxMips = 1;
 	int counter = dimensions[0];
 	octInfo.numLeafVoxels = 0;

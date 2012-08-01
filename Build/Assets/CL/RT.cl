@@ -4,6 +4,8 @@ __constant const sampler_t sampler3D = CLK_FILTER_NEAREST | CLK_NORMALIZED_COORD
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 #include "colour.h"
 #include "RT.h"
+#include "GenRay.h"
+#include "RayIntersect.h"
 
 __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant Params* params, __global Counters* counters)
 {
@@ -16,12 +18,9 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 	float xPos = (float)x / (float)w;
 	float yPos = (float)y / (float)h;	
 
-	ray r;
-	r.origin = (float4)(0.0, 0.0, 0.0, 1.0);
-	r.origin = multMatVec(&r.origin, &(params->invWorldView));
-	r.direction = (float4)((xPos * 2.0) - 1.0, (yPos * 2.0) - 1.0, -1.0, 0.0);	
-	r.direction = multMatVec(&r.direction, &(params->invWorldView));
-	r.direction.xyz = normalize(r.direction.xyz);
+	float2 screenPos = (float2)((float)x / (float)w, (float)y / (float)h);
+
+	Ray r = createRay(&params->invWorldView, screenPos);	
 	
 	int2 coords = (int2)(x, y);	
 
@@ -29,33 +28,61 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 
 	atom_add(&counters->numSamples, 1);	
 
-	if (intersectCube(r, 1.0, 1000.0, &intersectionPoint))
-	{		
-		float3 offset = r.direction.xyz * length(params->invSize.xyz) * 0.5;  //move halfway into voxel		
+	if (intersectCube(r, 0.001, 1000.0, &intersectionPoint))
+	{				
 		int4 startPoint;
-		
-		startPoint.x = intersectionPoint.x * params->size.x + offset.x;
-		startPoint.y = intersectionPoint.y * params->size.y + offset.y;
-		startPoint.z = intersectionPoint.z * params->size.z + offset.z;	//start point is integer position in voxel grid
-		
-
-		float3 tDelta = fabs(params->invSize.xyz / r.direction.xyz);		
 		float3 stepSize = sign(r.direction.xyz);
-		float3 tMax = offset * stepSize;
-		
+		float3 stepFlag = stepSize * 0.5 + 0.5;	//1 if positive, 0 otherwise
 		int3 maxCoord;
-		maxCoord.x = (params->size.x + (stepSize.x * params->size.x)) / 2.0 - 1;
-		maxCoord.y = (params->size.y + (stepSize.y * params->size.y)) / 2.0 - 1;
-		maxCoord.z = (params->size.z + (stepSize.z * params->size.z)) / 2.0 - 1;
+
+		intersectionPoint.x *= params->size.x;
+		intersectionPoint.y *= params->size.y;
+		intersectionPoint.z *= params->size.z;
+		
+		startPoint.x = max(floor(intersectionPoint.x), 0.0f);
+		startPoint.y = max(floor(intersectionPoint.y), 0.0f);
+		startPoint.z = max(floor(intersectionPoint.z), 0.0f);	//start point is integer position in voxel grid		
+
+		//if startPoint coords are equal to size, then subtract 1 to keep it inside the grid
+		if (startPoint.x == params->size.x) --startPoint.x;
+		if (startPoint.y == params->size.y) --startPoint.y;
+		if (startPoint.z == params->size.z) --startPoint.z;
+
+		float3 tDelta = fabs(1.0 / r.direction.xyz);
+
+		float3 tMax;
+		tMax.x = (startPoint.x + stepFlag.x) - intersectionPoint.x;	
+		tMax.y = (startPoint.y + stepFlag.y) - intersectionPoint.y;
+		tMax.z = (startPoint.z + stepFlag.z) - intersectionPoint.z;
+
+		tMax /= r.direction.xyz;
+
+		maxCoord.x = (params->size.x + (stepSize.x * params->size.x)) / 2 + stepSize.x * 0.5 - 0.5;	//branchless, set to minus one if stepSize is negative
+		maxCoord.y = (params->size.y + (stepSize.y * params->size.y)) / 2 + stepSize.y * 0.5 - 0.5;
+		maxCoord.z = (params->size.z + (stepSize.z * params->size.z)) / 2 + stepSize.z * 0.5 - 0.5;
 		
 		bool hit = 0;
-		//hit = 1;
+		hit = 0;
 		
 		int iter = 0;
 		float4 colour;		
-		//colour = params->invSize.xyzx * 128;
+		//colour = params->invSize.xyzx * 8;
 		//colour = (float4)(1.0, 0.0, 0.0, 1.0);
-		//colour = (float4)(startPoint.x / 128.0, startPoint.y / 128.0, startPoint.z / 128.0, 1.0);			
+		//colour = (float4)((float)startPoint.x / (params->size.x - 1), (float)startPoint.y / (params->size.y - 1), (float)startPoint.z / (params->size.z - 1), 1.0);	
+		//colour = (float4)((float)maxCoord.x / params->size.x, (float)maxCoord.y / params->size.y, (float)maxCoord.z / params->size.z, 1.0);
+
+		/*float4 clamped = clamp(colour, 0.0, 1.0);
+		if (colour.x != clamped.x || colour.y != clamped.y || colour.z != clamped.z)
+			colour = (float4)(1.0, 0.0, 0.0, 1.0);*/
+
+		/*if (maxCoord.x > params->size.x - 1 || maxCoord.y > params->size.y - 1 || maxCoord.z > params->size.x - 1)
+			colour = (float4)(1.0, 0.0, 0.0, 1.0);*/
+
+		if (startPoint.x == 0 && startPoint.y == 0 && startPoint.z == 0)
+		{
+			colour = (float4)(1.0, 0.0, 0.0, 1.0);		
+			hit = 1;	
+		}
 		
 		while(!hit && iter < 512)
 		{
@@ -65,7 +92,7 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 			
 			++iter;
 			
-			if (colour.w > 0)
+			if (colour.w > 0.0)
 			{				
 				hit = true;
 				break;
@@ -77,7 +104,7 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 					startPoint.x = startPoint.x + stepSize.x;
 					if(startPoint.x == maxCoord.x)
 						break;  // outside grid 
-					tMax.x = tMax.x + tDelta.x;
+					tMax.x = tMax.x + tDelta.x;					
 				} 
 				else 
 				{
@@ -111,78 +138,4 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 			write_imagef(bmp, coords, colour);		
 		}
 	}	
-}
-
-__kernel void OctRT(__write_only image2d_t bmp, __global Block* input, __constant Params* params, __global Counters* counters)
-{
-	int x = get_global_id(0);
-	int y = get_global_id(1);
-	int w = get_global_size(0) - 1;
-	int h = get_global_size(1) - 1;
-	
-	float xPos = (float)x / (float)w;
-	float yPos = (float)y / (float)h;	
-
-	ray r;
-	r.origin = (float4)(0.0, 0.0, 0.0, 1.0);
-	r.origin = multMatVec(&r.origin, &(params->invWorldView));
-	r.direction = (float4)((xPos * 2.0) - 1.0, (yPos * 2.0) - 1.0, -1.0, 0.0);	
-	r.direction = multMatVec(&r.direction, &(params->invWorldView));
-	r.direction.xyz = normalize(r.direction.xyz);
-	
-	int2 coords = (int2)(x, y);	
-
-	float4 intersectionPoint = (float4)(0.0, 0.0, 0.0, 1.0);
-
-	atom_add(&counters->numSamples, 1);	
-
-	if (intersectCube(r, 1.0, 1000.0, &intersectionPoint))
-	{
-		float3 offset = r.direction.xyz * length(params->invSize.xyz) * 0.5;  //move halfway into voxel		
-		uint3 startPoint;
-		uint3 size = params->size.xyz;
-		
-		startPoint.x = intersectionPoint.x * params->size.x + offset.x;
-		startPoint.y = intersectionPoint.y * params->size.y + offset.y;
-		startPoint.z = intersectionPoint.z * params->size.z + offset.z;	//start point is integer position in voxel grid
-
-		float4 colour = (float4)(1.0, 0.0, 0.0, 1.0);
-
-		int iter = 0;
-		bool hit = 0;
-		uint curPos = 0;
-		__global Block* current = 0;
-
-		VoxelStack vs;
-		initStack(&vs);
-
-		while (iter < 512 && !hit)
-		{	
-			uint octant = getOctant(startPoint, size);
-			if (current)
-			{
-				if (!getValid(current, octant))
-				{	
-					hit = true;
-				}
-			}
-			curPos += octant;
-			current = input + curPos;		
-			uint childOffset = getChildPtr(current);
-			if (!childOffset)
-			{
-				hit = true;
-				break;
-			}
-			curPos += childOffset;	
-			reduceOctant(&startPoint, &size);
-		}
-		atom_add(&counters->total, iter);
-		colour = UnpackColour(current->colour);
-		if (hit)
-		{
-			write_imagef(bmp, coords, colour);
-		}
-
-	}
 }

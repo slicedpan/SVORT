@@ -1,17 +1,4 @@
 
-#ifdef _WIN32
-#pragma once
-#define uint cl_uint
-#define int3 cl_int3
-#define uint3 cl_uint3
-#define s0 s[0]
-#define s1 s[1]
-#define s2 s[2]
-#define __global
-namespace SVO
-{
-#endif
-
 #define LEFTBOTTOMBACK 0
 #define RIGHTBOTTOMBACK 1
 #define LEFTTOPBACK 2
@@ -27,6 +14,45 @@ typedef struct
 	uint levelOffset[15];
 	uint levelSize[16];	//should be enough for a 240TB voxel data size :-)
 } OctreeInfo;
+
+typedef struct
+{
+	uint blockPos;
+	uint octantMask;
+} BlockInfo;
+
+typedef struct
+{
+	uint count;
+	uint blockInfo[16];
+}	VoxelStack;
+
+inline void initStack(VoxelStack* vs)
+{
+	vs->count = 0;
+}
+
+inline void pushVoxel(VoxelStack* vs, uint blockPos, uint octantMask)
+{
+	vs->blockInfo[vs->count] = blockPos;	//if this overflows 2^29 we're in trouble, however that corresponds to an svo 512GB in size (assuming a block is 8 bytes)
+	octantMask = octantMask << 29;
+	vs->blockInfo[vs->count] |= octantMask;
+	++vs->count;
+}
+
+inline BlockInfo popVoxel(VoxelStack* vs)
+{
+	BlockInfo bi;
+	--vs->count;
+	bi.blockPos = vs->blockInfo[vs->count] & 536870911;		//if only there were a portable way to define binary literals, this is the first (least significant) 29 bits set
+	bi.octantMask = (vs->blockInfo[vs->count] & 3758096384) >> 29;	//last (most significant) three bits set
+	return bi;
+}
+
+inline bool isEmpty(VoxelStack* vs)
+{
+	return (vs->count == 0);
+}
 
 inline void reduceOctant(uint3* position, uint3* dimensions)
 {
@@ -99,12 +125,12 @@ inline uint leafFlagValue(uint position)
 
 inline uint getChildPtr(__global Block* b)
 {
-	return b->data & 16777215;
+	return b->data & 16777215;	//first 24 bits set
 }
 
 inline void setChildPtr(__global Block* b, uint value)
 {
-	b->data &= ~16777215;
+	b->data &= ~16777215;		
 	b->data |= value & 16777215;
 }
 
@@ -127,7 +153,3 @@ inline void setLeaf(__global Block* b, unsigned int position)
 {
 	b->colour |= 1 << (24 + position);
 }
-
-#ifdef _WIN32
-}
-#endif
