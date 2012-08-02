@@ -114,9 +114,9 @@ void Engine::Setup()
 
 	mipLevel = 0;
 
-	voxelSize.x = 16;
-	voxelSize.y = 16;
-	voxelSize.z = 16;
+	voxelSize.x = 64;
+	voxelSize.y = 64;
+	voxelSize.z = 64;
 	
 	glGenTextures(1, &tex3D);
 	
