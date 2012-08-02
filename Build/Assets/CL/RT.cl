@@ -62,7 +62,7 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 		maxCoord.z = (params->size.z + (stepSize.z * params->size.z)) / 2 + stepSize.z * 0.5 - 0.5;
 		
 		bool hit = 0;
-		hit = 0;
+		//hit = 1;
 		
 		int iter = 0;
 		float4 colour;		

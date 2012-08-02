@@ -471,6 +471,7 @@ void Engine::Display()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	
 	fbos["RayTrace"]->Unbind();
+	glFinish();
 
 	if (clDraw)
 		UpdateCL();
