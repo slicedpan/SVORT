@@ -72,8 +72,7 @@ void VoxelBuilder::GenerateMipmaps()
 	{
 		clFinish(ocl.queue);
 		clSetKernelArg(ocl.mipKernel, 1, sizeof(cl_int4), &inSizeOffset);
-		clSetKernelArg(ocl.mipKernel, 2, sizeof(cl_int4), &outSizeOffset);
-		
+		clSetKernelArg(ocl.mipKernel, 2, sizeof(cl_int4), &outSizeOffset);		
 
 		size_t workDim[3] = { outSizeOffset.s[0], outSizeOffset.s[1], outSizeOffset.s[2] };
 
@@ -216,8 +215,7 @@ void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer
 	octInfo.numVoxels = octInfo.numLeafVoxels;
 	octInfo.numLevels = maxMips;
 	clEnqueueWriteBuffer(ocl.queue, ocl.octreeInfo, false, 0, sizeof(octInfo), &octInfo, 0, NULL, NULL);
-	clFinish(ocl.queue);
-	GenerateMipmaps();
+	clFinish(ocl.queue);	
 }
 
 void VoxelBuilder::CreateKernels()
