@@ -30,10 +30,14 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 
 	if (intersectCube(r, 0.001, 1000.0, &intersectionPoint))
 	{				
-		int4 startPoint;
-		float3 stepSize = sign(r.direction.xyz);
-		float3 stepFlag = stepSize * 0.5 + 0.5;	//1 if positive, 0 otherwise
-		int3 maxCoord;
+		uint3 startPoint;
+		int3 stepSize;
+
+		stepSize.x = sign(r.direction.x);
+		stepSize.y = sign(r.direction.y);
+		stepSize.z = sign(r.direction.z);
+
+		uint3 maxCoord;
 
 		intersectionPoint.x *= params->size.x;
 		intersectionPoint.y *= params->size.y;
@@ -41,7 +45,7 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 		
 		startPoint.x = max(floor(intersectionPoint.x), 0.0f);
 		startPoint.y = max(floor(intersectionPoint.y), 0.0f);
-		startPoint.z = max(floor(intersectionPoint.z), 0.0f);	//start point is integer position in voxel grid		
+		startPoint.z = max(floor(intersectionPoint.z), 0.0f);	//start point is integer position in voxel grid
 
 		//if startPoint coords are equal to size, then subtract 1 to keep it inside the grid
 		if (startPoint.x == params->size.x) --startPoint.x;
@@ -51,9 +55,9 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 		float3 tDelta = fabs(1.0 / r.direction.xyz);
 
 		float3 tMax;
-		tMax.x = (startPoint.x + stepFlag.x) - intersectionPoint.x;	
-		tMax.y = (startPoint.y + stepFlag.y) - intersectionPoint.y;
-		tMax.z = (startPoint.z + stepFlag.z) - intersectionPoint.z;
+		tMax.x = startPoint.x - intersectionPoint.x + (stepSize.x + 1) / 2;	
+		tMax.y = startPoint.y - intersectionPoint.y + (stepSize.y + 1) / 2;
+		tMax.z = startPoint.z - intersectionPoint.z + (stepSize.z + 1) / 2;
 
 		tMax /= r.direction.xyz;
 
@@ -78,12 +82,6 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 		/*if (maxCoord.x > params->size.x - 1 || maxCoord.y > params->size.y - 1 || maxCoord.z > params->size.x - 1)
 			colour = (float4)(1.0, 0.0, 0.0, 1.0);*/
 
-		if (startPoint.x == 0 && startPoint.y == 0 && startPoint.z == 0)
-		{
-			colour = (float4)(1.0, 0.0, 0.0, 1.0);		
-			hit = 1;	
-		}
-		
 		while(!hit && iter < 512)
 		{
 			int pos = startPoint.z * params->size.x * params->size.y + startPoint.y * params->size.x + startPoint.x;
@@ -102,14 +100,14 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 				if(tMax.x < tMax.y) 
 				{
 					startPoint.x = startPoint.x + stepSize.x;
-					if(startPoint.x == maxCoord.x)
+					if(startPoint.x >= params->size.x)
 						break;  // outside grid 
 					tMax.x = tMax.x + tDelta.x;					
 				} 
 				else 
 				{
 					startPoint.y = startPoint.y + stepSize.y;
-					if(startPoint.y == maxCoord.y)
+					if(startPoint.y >= params->size.y)
 						break;
 					tMax.y = tMax.y + tDelta.y;
 				}
@@ -118,15 +116,15 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 			{
 				if(tMax.y < tMax.z) 
 				{
-				startPoint.y = startPoint.y + stepSize.y;
-				if(startPoint.y == maxCoord.y)
-					break;
-				tMax.y = tMax.y + tDelta.y;
+					startPoint.y = startPoint.y + stepSize.y;
+					if(startPoint.y >= params->size.y)
+						break;
+					tMax.y = tMax.y + tDelta.y;
 				}
 				else 
 				{
 					startPoint.z = startPoint.z + stepSize.z;
-					if(startPoint.z == maxCoord.z)
+					if(startPoint.z >= params->size.z)
 						break;
 					tMax.z = tMax.z + tDelta.z;
 				}

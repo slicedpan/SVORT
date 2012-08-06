@@ -1,4 +1,6 @@
+
 #include "Octree.h"
+#include "OctRT.h"
 #include "colour.h"
 #include "grid.h"
 
@@ -7,13 +9,13 @@ __kernel void DrawOctree(__write_only image2d_t output, __global Block* input, u
 	int2 screenCoords = (int2)(get_global_id(0), get_global_id(1));
 	uint2 dimensions = (uint2)(get_image_width(output), get_image_height(output));
 		
-	uint3 coords;
+	uint4 coords;
 
 	coords.x = sizeAndLayer.x * ((float)screenCoords.x / (float)(dimensions.x - 1));
 	coords.y = sizeAndLayer.y * ((float)screenCoords.y / (float)(dimensions.y - 1));
 	coords.z = sizeAndLayer.w;
 	
-	uint3 size = (uint3)(sizeAndLayer.x, sizeAndLayer.y, sizeAndLayer.z);
+	uint4 size = sizeAndLayer;
 	uint mipLevel = mipOffset.z % 16;	
 	
 	float4 colour;
@@ -22,11 +24,12 @@ __kernel void DrawOctree(__write_only image2d_t output, __global Block* input, u
 	uint curPos = 0;
 
 	uint2 pixSize = dimensions;
+		
 	uint childOffset = 0;
 	for (int i = 0; i <= mipLevel; ++i)
 	{		
 		pixSize /= 2;
-		uint octant = getOctant(coords, size);
+		uint octant = getAndReduceOctant(&coords, &size);
 		if (current)
 		{
 			if (!getValid(current, octant))
@@ -39,11 +42,10 @@ __kernel void DrawOctree(__write_only image2d_t output, __global Block* input, u
 		childOffset = getChildPtr(current);
 		if (!childOffset)
 			break;
-		curPos += childOffset;		
-		reduceOctant(&coords, &size);
+		curPos += childOffset;	
 		
 	}
-	
+
 	colour = UnpackColour(current->colour);
 	
 	//colour.x = 1.0;	

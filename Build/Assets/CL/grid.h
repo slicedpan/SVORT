@@ -1,4 +1,7 @@
 
+#ifndef _GRID_H
+#define _GRID_H
+
 typedef struct
 {
 	uint numVoxels;
@@ -11,3 +14,5 @@ uint GetGridOffset(uint3 coords, uint3 gridSize)
 {
 	return coords.z * gridSize.x * gridSize.y + coords.y * gridSize.x + coords.x;
 }
+
+#endif 

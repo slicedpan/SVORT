@@ -1,7 +1,10 @@
 
+#ifndef _COLOUR_H
+#define _COLOUR_H
+
 uint PackColour(float4 colour)
 {
-	int4 iCol;
+	uint4 iCol;
 	iCol.s0 = (uint)(colour.s0 * 255);
 	iCol.s1 = (uint)(colour.s1 * 255);
 	iCol.s2 = (uint)(colour.s2 * 255);
@@ -59,3 +62,4 @@ void PackNormal(float4 normal, uint* iColour, __global float4* normalLookup)	//t
 	
 }
 
+#endif

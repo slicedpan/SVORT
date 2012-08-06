@@ -23,6 +23,7 @@
 #include "OpenCLStructs.h"
 #include "CLDefsBegin.h"
 #include "Octree.h"
+#include "../Build/Assets/CL/colour.h"
 #include "CLDefsEnd.h"
 
 #ifdef _WIN32
@@ -83,7 +84,7 @@ void Engine::Init3DTexture()
 	if (!drawMesh1)
 		mesh = mesh2;  	
 
-	voxelBuilder.Build(mesh, &voxelSize.x, shaders["Basic"], ocl.voxInfo);
+	voxelBuilder.Build(mesh, &voxelSize.x, shaders["Basic"], ocl.voxInfo, ocl.normalLookup);
 	ocl.volumeData = voxelBuilder.GetVoxelData();	
 
 	OctreeInfo oi;
@@ -114,9 +115,9 @@ void Engine::Setup()
 
 	mipLevel = 0;
 
-	voxelSize.x = 64;
-	voxelSize.y = 64;
-	voxelSize.z = 64;
+	voxelSize.x = 16;
+	voxelSize.y = 16;
+	voxelSize.z = 16;
 	
 	glGenTextures(1, &tex3D);
 	
@@ -172,6 +173,18 @@ void Engine::Setup()
 	if (ocl.octRTKernel)
 		clSetKernelArg(ocl.octRTKernel, 1, sizeof(cl_mem), &ocl.octreeData);
 	CreateRTKernel();
+
+
+	cl_uint iCol;
+	cl_float4 colour;
+	
+	Colour::Copy4(colour.s, Colour::Magenta);
+	iCol = PackColour(colour);
+	cl_float4 colour2;
+
+	colour2 = UnpackColour(iCol);
+
+
 }
 
 void Engine::CreateRTKernel()
@@ -358,6 +371,10 @@ void Engine::SetupOpenCL()
 	ocl.octInfo = clCreateBuffer(ocl.context, CL_MEM_READ_ONLY, sizeof(OctreeInfo), NULL, &resultCL);
 	CLGLError(resultCL);
 
+	printf("Creating Normal Lookup Table...\n");
+	ocl.normalLookup = clCreateBuffer(ocl.context, CL_MEM_READ_ONLY, sizeof(cl_float4) * 256, NULL, &resultCL);
+	CLGLError(resultCL);
+
 	printf("\n\n");
 
 #pragma endregion
@@ -367,6 +384,15 @@ void Engine::SetupOpenCL()
 	
 }
 
+void Engine::PopulateNormalLookup()
+{
+	printf("Creating normal lookup table...\n");
+	cl_float4 normals[256];
+
+	printf("Copying to GPU memory...\n");
+	clEnqueueWriteBuffer(ocl.queue, ocl.normalLookup, true, 0, sizeof(cl_float4) * 256, normals, 0, NULL, NULL);
+}
+
 void Engine::UpdateCL()
 {	
 	
@@ -374,6 +400,7 @@ void Engine::UpdateCL()
 	Mat4 invWorldView = inv(world) * cam->GetTransform();
 
 	memcpy(&RTParams.sizeX, &voxelSize.x, sizeof(int) * 3);
+	RTParams.sizeW = voxelBuilder.GetMaxNumMips();
 	memcpy(RTParams.invWorldView, invWorldView.Ref(), sizeof(float) * 16);
 	RTParams.invSize[0] = 1.0 / voxelSize.x;
 	RTParams.invSize[1] = 1.0 / voxelSize.y;

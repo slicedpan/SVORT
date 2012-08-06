@@ -32,6 +32,7 @@ private:
 	void CreateRTKernel();
 	void CleanupCL();
 	void DebugDrawVoxelData();
+	void PopulateNormalLookup();
 	unsigned int tex3D;
 	Camera* cam;
 	CameraController* camControl;
@@ -68,6 +69,7 @@ private:
 		cl_mem octreeData;
 		cl_kernel octRTKernel;
 		cl_program octRTProgram;
+		cl_mem normalLookup;
 	} ocl;
 	
 	struct

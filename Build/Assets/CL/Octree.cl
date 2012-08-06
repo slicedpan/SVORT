@@ -28,15 +28,15 @@ __kernel void CreateOctree(__global int* input, __global Block* output, __consta
 	}
 	else
 	{
-		uint3 relativeCoords = coords;
-		uint3 relativeSize = workSize;
+		uint4 relativeCoords = coords.xyzz;
+		uint4 relativeSize = workSize.xyzz;
 		uint curPos = 0;
 		uint octant;
 		__global Block* parent = 0;		
 		for (int i = 0; i < op.level && i < 16; ++i)	//descend hierarchy
 		{			
 			//figure out which octant this voxel is in
-			octant = getOctant(relativeCoords, relativeSize);
+			octant = getAndReduceOctant(&relativeCoords, &relativeSize);
 
 			if (parent)	//parent pointer was set last iteration
 			{
@@ -48,8 +48,7 @@ __kernel void CreateOctree(__global int* input, __global Block* output, __consta
 			curPos += octant;
 			parent = output + curPos;
 			curPos += getChildPtr(parent);				
-
-			reduceOctant(&relativeCoords, &relativeSize);
+			
 		}		
 		
 		octant = getOctant(relativeCoords, relativeSize);
@@ -92,15 +91,15 @@ __kernel void CreateTestOctree(__global int* input, __global Block* output, __co
 	}
 	else
 	{
-		uint3 relativeCoords = coords;
-		uint3 relativeSize = workSize;
+		uint4 relativeCoords = coords.xyzz;
+		uint4 relativeSize = workSize.xyzz;
 		uint curPos = 0;
 		uint octant;
 		__global Block* parent = 0;		
 		for (int i = 0; i < op.level && i < 16; ++i)	//descend hierarchy
 		{			
 			//figure out which octant this voxel is in
-			octant = getOctant(relativeCoords, relativeSize);
+			octant = getAndReduceOctant(&relativeCoords, &relativeSize);
 
 			if (parent)	//parent pointer was set last iteration
 			{
@@ -112,8 +111,7 @@ __kernel void CreateTestOctree(__global int* input, __global Block* output, __co
 			curPos += octant;
 			parent = output + curPos;
 			curPos += getChildPtr(parent);				
-
-			reduceOctant(&relativeCoords, &relativeSize);
+			
 		}		
 		
 		octant = getOctant(relativeCoords, relativeSize);

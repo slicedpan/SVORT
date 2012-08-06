@@ -1,4 +1,7 @@
 
+#ifndef _GENRAY_H
+#define _GENRAY_H
+
 float4 multVecMat(const float4* vector, __constant float16* matrix)
 {
 	float4 retVec;
@@ -52,3 +55,5 @@ Ray createRay(__constant float16* invWorldView, float2 screenPos)
 	r.direction.xyz = normalize(r.direction.xyz);
 	return r;
 }
+
+#endif

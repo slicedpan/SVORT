@@ -9,7 +9,11 @@
 #define uint4 cl_uint4
 #define float16 cl_float16
 #define float4 cl_float4
+#define float3 cl_float3
 #define int4 cl_uint4
+#define ushort2 cl_ushort2
+#define ushort4 cl_ushort4
+#define short4 cl_short4
 
 #define s0 s[0]
 #define s1 s[1]
@@ -30,6 +34,11 @@ inline uint atom_add(uint* i, uint val)
 	old = *i;
 	*i += val;
 	return old;
+}
+
+inline uint min(uint x, uint y)
+{
+	return (x < y) ? x : y;
 }
 
 namespace SVO

@@ -1,4 +1,7 @@
 
+#ifndef _RT_H
+#define _RT_H
+
 typedef struct 
 {
 	float4 origin;
@@ -18,5 +21,5 @@ typedef struct
 	uint total;
 } Counters;
 
-
+#endif
 

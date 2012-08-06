@@ -12,6 +12,14 @@
 #include <CL\cl_gl.h>
 #include "QuadDrawer.h"
 
+struct PackedColour
+{
+	unsigned a : 8;
+	unsigned b : 8;
+	unsigned g : 8;
+	unsigned r : 8;
+};
+
 VoxelBuilder::VoxelBuilder(void)
 {
 	memset(&ocl, 0, sizeof(ocl));
@@ -102,7 +110,7 @@ int VoxelBuilder::GetMaxNumMips()
 	return maxMips;
 }
 
-void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer, cl_mem octreeInfo)
+void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer, cl_mem octreeInfo, cl_mem normalLookup)
 {
 	memcpy(dims, dimensions, sizeof(int) * 3);
 	cl_int resultCL = 0;
@@ -127,6 +135,7 @@ void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer
 	clSetKernelArg(ocl.fillKernel, 0, sizeof(cl_mem), &(ocl.inputData[0]));
 	clSetKernelArg(ocl.fillKernel, 1, sizeof(cl_mem), &(ocl.inputData[1]));
 	clSetKernelArg(ocl.fillKernel, 2, sizeof(cl_mem), &ocl.voxelData);
+	clSetKernelArg(ocl.fillKernel, 4, sizeof(cl_mem), &normalLookup);
 
 	cl_int4 size;
 	memcpy(size.s, dimensions, sizeof(int) * 3);
@@ -170,7 +179,7 @@ void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer
 		if (debugDraw && debugDrawShader)
 		{
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, fbo->GetTextureID("normal"));
+			glBindTexture(GL_TEXTURE_2D, fbo->GetTextureID("colour"));
 			debugDrawShader->Use();
 			debugDrawShader->Uniforms["baseTex"].SetValue(0);
 			QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(1.0, 1.0), Vec2(1.0, 1.0));
@@ -198,9 +207,11 @@ void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer
 		zDist += increment;
 
 	}
-	delete fbo;
+
 	clReleaseMemObject(ocl.inputData[0]);
 	clReleaseMemObject(ocl.inputData[1]);
+	delete fbo;
+	
 	maxMips = 1;
 	int counter = dimensions[0];
 	octInfo.numLeafVoxels = 0;
@@ -215,7 +226,13 @@ void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer
 	octInfo.numVoxels = octInfo.numLeafVoxels;
 	octInfo.numLevels = maxMips;
 	clEnqueueWriteBuffer(ocl.queue, ocl.octreeInfo, false, 0, sizeof(octInfo), &octInfo, 0, NULL, NULL);
-	clFinish(ocl.queue);	
+	clFinish(ocl.queue);
+
+	std::vector<PackedColour> colourData;
+	colourData.resize(dimensions[0] * dimensions[0] * dimensions[0]);
+	clEnqueueReadBuffer(ocl.queue, ocl.voxelData, true, 0, sizeof(PackedColour) * colourData.size(), &colourData[0], 0, NULL, NULL);
+
+	GenerateMipmaps();	//this is not glGenerateMipmaps()
 }
 
 void VoxelBuilder::CreateKernels()

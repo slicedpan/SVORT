@@ -68,7 +68,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CubeDrawer.cpp" />
-    <ClCompile Include="Engine.cpp" />
+    <ClCompile Include="Engine.cpp">
+      <DeploymentContent>false</DeploymentContent>
+    </ClCompile>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="OctreeBuilder.cpp" />
     <ClCompile Include="Utils.cpp" />
