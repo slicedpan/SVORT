@@ -41,6 +41,11 @@ inline uint min(uint x, uint y)
 	return (x < y) ? x : y;
 }
 
+inline float max(float x, float y)
+{
+	return (x > y) ? x : y;
+}
+
 namespace SVO
 {
 #endif

@@ -95,8 +95,8 @@ void OctreeBuilder::Build(cl_mem inputBuf, int* dimensions, cl_mem octreeInfo, c
 	blocks.resize(vi.numLeafVoxels);
 	clEnqueueReadBuffer(ocl.queue, ocl.octData, true, 0, sizeof(CLBlock) * vi.numLeafVoxels, &blocks[0], 0, NULL, NULL);
 	
-	SVO::Ray r = {{0.0, 0.0, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}};
-	Vec3 dir(0.8, -0.5, -0.1);
+	SVO::Ray r = {{0.0, 0.5, 0.0, 1.0}, {1.0, 0.0, 0.0, 0.0}};
+	Vec3 dir(-1.0, -1.0, 0.0);
 	dir = norm(dir);
 	memcpy(&r.direction, dir.Ref(), sizeof(float) * 3);
 	cl_uint4 size;
@@ -109,7 +109,7 @@ void OctreeBuilder::Build(cl_mem inputBuf, int* dimensions, cl_mem octreeInfo, c
 	c.numSamples = 0;
 	c.total = 0;
 
-	cl_float3 intersectionPoint = {{0.0, 0.72, 0.15}};
+	cl_float3 intersectionPoint = {{1.0, 12 / 16.0, 0.0}};
 
 	SVO::Block* input = (SVO::Block*)&blocks[0];
 

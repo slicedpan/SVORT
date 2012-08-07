@@ -7,6 +7,7 @@
 
 #define HITORMISSBIT	2147483648	//2^31
 #define POSMASK 2147483647	//(2^31) - 1
+#define FUDGE 1e-7f
 
 uint findStartPoint(uint4 startPoint, __global Block* input, VoxelStack* vs, uint4 size, __global Counters* counters, uint maxLOD)
 {
@@ -47,19 +48,7 @@ uint findStartPoint(uint4 startPoint, __global Block* input, VoxelStack* vs, uin
 	return curPos;
 }
 
-uint descendHierarchy(uint4 voxelCoord, __global Block* input, VoxelStack* vs, uint maxDepth, uint4 size)
-{
-	uint curDepth = vs->count;
-	__global Block* parent;
-	return 0;
-	while (vs->count != maxDepth)
-	{
-		
-	}
-	
-}
-
-uint castRay(uint4 startVoxel, float3 intersectionPoint, __global Block* input, VoxelStack* vs, Ray* r, uint4 size, __global Counters* counters, uint maxLOD)
+uint castRay(uint4 startVoxel, float4 intersectionPoint, __global Block* input, VoxelStack* vs, Ray* r, uint4 size, __global Counters* counters, uint maxLOD)
 {
 
 	int3 stepSize;
@@ -72,8 +61,6 @@ uint castRay(uint4 startVoxel, float3 intersectionPoint, __global Block* input, 
 	stepFlag.s0 = ((float)stepSize.s0 * 0.5) + 0.5;
 	stepFlag.s1 = ((float)stepSize.s1 * 0.5) + 0.5;
 	stepFlag.s2 = ((float)stepSize.s2 * 0.5) + 0.5;
-
-	uint3 maxCoord;
 
 	uint maxDepth = min(maxLOD, size.s3);
 
@@ -91,10 +78,6 @@ uint castRay(uint4 startVoxel, float3 intersectionPoint, __global Block* input, 
 	tMax.s1 /= r->direction.s1;
 	tMax.s2 /= r->direction.s2;
 
-	maxCoord.s0 = (size.s0 + (stepSize.s0 * size.s0)) / 2 + stepSize.s0 * 0.5 - 0.5;	//branchless, set to minus one if stepSize is negative
-	maxCoord.s1 = (size.s1 + (stepSize.s1 * size.s1)) / 2 + stepSize.s1 * 0.5 - 0.5;
-	maxCoord.s2 = (size.s2 + (stepSize.s2 * size.s2)) / 2 + stepSize.s2 * 0.5 - 0.5;
-
 	uint iter = 0;
 
 	__global Block* blockPtr;
@@ -103,8 +86,7 @@ uint castRay(uint4 startVoxel, float3 intersectionPoint, __global Block* input, 
 	while(iter < 512)
 	{			
 		uint nextOctant;		
-		bi = popVoxel(vs);
-		uint sideLength = size.s0 >> vs->count;			 
+		bi = popVoxel(vs);	 
 
 		if(tMax.s0 < tMax.s2) 
 		{
@@ -114,7 +96,7 @@ uint castRay(uint4 startVoxel, float3 intersectionPoint, __global Block* input, 
 				while (bi.octantMask & XMASK == stepSize.s0)
 				{
 					if (isEmpty(vs))
-						return 1 << 31;	//there are no further voxels in the x-direction
+						return HITORMISSBIT;	//there are no further voxels in the x-direction
 					bi = popVoxel(vs);	
 				}
 				nextOctant = bi.octantMask + XMASK;
@@ -127,7 +109,7 @@ uint castRay(uint4 startVoxel, float3 intersectionPoint, __global Block* input, 
 				while (bi.octantMask & YMASK == stepSize.s1)
 				{
 					if (isEmpty(vs))
-						return 1 << 31;
+						return HITORMISSBIT;
 					bi = popVoxel(vs);
 				}		
 				nextOctant = bi.octantMask + YMASK;
@@ -143,7 +125,7 @@ uint castRay(uint4 startVoxel, float3 intersectionPoint, __global Block* input, 
 				while (bi.octantMask & YMASK == stepSize.s1)
 				{
 					if (isEmpty(vs))
-						return 1 << 31;
+						return HITORMISSBIT;
 					bi = popVoxel(vs);
 				}		
 				nextOctant = bi.octantMask + YMASK;
@@ -156,7 +138,7 @@ uint castRay(uint4 startVoxel, float3 intersectionPoint, __global Block* input, 
 				while (bi.octantMask & ZMASK == stepSize.s2)
 				{
 					if (isEmpty(vs))
-						return 1 << 31;
+						return HITORMISSBIT;
 					bi = popVoxel(vs);
 				}			
 				nextOctant = bi.octantMask + ZMASK;
@@ -183,11 +165,7 @@ uint castRay(uint4 startVoxel, float3 intersectionPoint, __global Block* input, 
 			}
 			else
 			{
-				if (descendHierarchy(startVoxel, input, vs, maxDepth, size))
-				{
-					bi = popVoxel(vs);
-					return bi.blockPos;
-				}
+				
 			}
 		}		
 	}
@@ -200,7 +178,7 @@ uint castRay(uint4 startVoxel, float3 intersectionPoint, __global Block* input, 
 	return 0;
 }
 
-uint rayTrace(float3 intersectionPoint, __global Block* input, Ray* r, uint4 size, __global Counters* counters, uint maxLOD)
+uint rayTrace(float4 intersectionPoint, __global Block* input, Ray* r, uint4 size, __global Counters* counters, uint maxLOD)
 {
 
 	uint4 startPoint;
@@ -230,6 +208,13 @@ uint rayTrace(float3 intersectionPoint, __global Block* input, Ray* r, uint4 siz
 	stepFlag.s1 = (stepSize.s1 * 0.5 + 0.5);
 	stepFlag.s2 = (stepSize.s2 * 0.5 + 0.5);
 
+	int zero = (int)ceil(fabs(r->direction.s0 - 0.0));
+	r->direction.s0 += (!zero) * FUDGE;
+	zero = (int)ceil(fabs(r->direction.s1 - 0.0));
+	r->direction.s1 += (!zero) * FUDGE;
+	zero = (int)ceil(fabs(r->direction.s2 - 0.0));
+	r->direction.s2 += (!zero) * FUDGE;
+
 	uint depth = 0;
 	uint maxDepth = min(maxLOD, size.s3);
 
@@ -237,11 +222,14 @@ uint rayTrace(float3 intersectionPoint, __global Block* input, Ray* r, uint4 siz
 	uint4 relativeCoords = startPoint;
 
 	uint curPos = 0;
-	__global Block* current = 0;	
+	__global Block* current = 0;
 
-	while (depth < maxDepth)
+	uint octant;
+	uint iter = 0;
+
+	while (depth < maxDepth && iter < 512)
 	{
-		uint octant = getAndReduceOctant(&relativeCoords, &relativeSize);
+		octant = getAndReduceOctant(&relativeCoords, &relativeSize);
 
 		curPos += octant;
 		pushVoxel(&vs, curPos, octant);
@@ -255,55 +243,177 @@ uint rayTrace(float3 intersectionPoint, __global Block* input, Ray* r, uint4 siz
 		current = input + curPos;
 		curPos += getChildPtr(current);
 		++depth;	//depth is 0 if the first voxel is not valid
+		++iter;
+	}
+
+	if (depth == maxDepth)
+	{
+#ifdef PERFCOUNTERENABLED
+		atom_add(&counters->total, iter);
+#endif
+		return curPos;
 	}
 
 	float3 tDelta;
 	tDelta.s0 = fabs(1.0 / r->direction.s0);
 	tDelta.s1 = fabs(1.0 / r->direction.s1);
-	tDelta.s2 = fabs(1.0 / r->direction.s2);		 
-
-	float3 tMax;
-	tMax.s0 = (startPoint.s0 - intersectionPoint.s0 + stepFlag.s0);	
-	tMax.s1 = (startPoint.s1 - intersectionPoint.s1 + stepFlag.s1);
-	tMax.s2 = (startPoint.s2 - intersectionPoint.s2 + stepFlag.s2);	
-
-	tMax.s0 /= r->direction.s0;
-	tMax.s1 /= r->direction.s1;
-	tMax.s2 /= r->direction.s2;
-
-	uint4 maxCoord;
-
-	maxCoord.s0 = (size.s0 + (stepSize.s0 * size.s0)) / 2 + stepSize.s0 * 0.5 - 0.5;	//branchless, set to minus one if stepSize is negative
-	maxCoord.s1 = (size.s1 + (stepSize.s1 * size.s1)) / 2 + stepSize.s1 * 0.5 - 0.5;
-	maxCoord.s2 = (size.s2 + (stepSize.s2 * size.s2)) / 2 + stepSize.s2 * 0.5 - 0.5;
+	tDelta.s2 = fabs(1.0 / r->direction.s2);	
 
 	BlockInfo bi;
 
-	uint4 voxelDist;
-	voxelDist.s0 = 0;
-	voxelDist.s1 = 0;
-	voxelDist.s2 = 0;
+	int4 voxelDist;	
+	bool hit = 0;
+	uint sideLength;
 
-	while(1)
+	while(!hit && iter < 512)
 	{
 		bi = popVoxel(&vs);
-		if (vs.count + 1 < size.s3)
+
+		sideLength = size.s0 >> vs.count + 1;
+		
+		voxelDist.s0 = startPoint.s0 % sideLength;
+		voxelDist.s0 = (1 - stepFlag.s0) * voxelDist.s0 + (stepFlag.s0) * (sideLength - voxelDist.s0 - 1);
+
+		voxelDist.s1 = startPoint.s1 % sideLength;
+		voxelDist.s1 = (1 - stepFlag.s1) * voxelDist.s1 + (stepFlag.s1) * (sideLength - voxelDist.s1 - 1);
+
+		voxelDist.s2 = startPoint.s2 % sideLength;
+		voxelDist.s2 = (1 - stepFlag.s2) * voxelDist.s2 + (stepFlag.s2) * (sideLength - voxelDist.s2 - 1);		
+
+		float4 tMax;
+		float t = 0.0;
+
+		tMax.s0 = (startPoint.s0 - intersectionPoint.s0) * stepSize.s0 + stepFlag.s0;	//distance to nearest voxel boundary at highest LOD
+		tMax.s1 = (startPoint.s1 - intersectionPoint.s1) * stepSize.s1 + stepFlag.s1;
+		tMax.s2 = (startPoint.s2 - intersectionPoint.s2) * stepSize.s2 + stepFlag.s2;
+
+		tMax.s0 += voxelDist.s0;
+		tMax.s1 += voxelDist.s1;
+		tMax.s2 += voxelDist.s2;		
+
+		tMax.s0 /= r->direction.s0 * stepSize.s0;
+		tMax.s1 /= r->direction.s1 * stepSize.s1;
+		tMax.s2 /= r->direction.s2 * stepSize.s2;
+
+		if (tMax.s0 < tMax.s1)
 		{
-			voxelDist.s0 += bi.centre.s0 - startPoint.s0;
-			voxelDist.s1 += bi.centre.s1 - startPoint.s1;
-			voxelDist.s2 += bi.centre.s2 - startPoint.s2;
+			if (tMax.s0 < tMax.s2)
+			{
+				//X
+				t += tDelta.s0 * (voxelDist.s0 + 1);				
+				while ((bi.octantMask & XMASK) == stepFlag.s0)
+				{
+					if (isEmpty(&vs))
+						return HITORMISSBIT;
+					bi = popVoxel(&vs);	
+				}
+			}
+			else
+			{
+				//Z
+				t += tDelta.s2 * (voxelDist.s2 + 1);
+				while ((bi.octantMask & ZMASK) == (stepFlag.s2 << 2))
+				{
+					if (isEmpty(&vs))
+						return HITORMISSBIT;
+					bi = popVoxel(&vs);	
+				}
+			}
+		}
+		else
+		{
+			if (tMax.s1 < tMax.s2)
+			{
+				//Y
+				t += tDelta.s1 * (voxelDist.s1 + 1);
+				while ((bi.octantMask & YMASK) == (stepFlag.s1 << 1))
+				{
+					if (isEmpty(&vs))
+						return HITORMISSBIT;
+					bi = popVoxel(&vs);					
+				}
+			}
+			else
+			{
+				//Z
+				t += tDelta.s2 * (voxelDist.s2 + 1); 
+				while (bi.octantMask & ZMASK == (stepFlag.s2 << 2))
+				{
+					if (isEmpty(&vs))
+						return HITORMISSBIT;
+					bi = popVoxel(&vs);	
+				}
+			}
 		}
 
-		tMax.s0 += voxelDist.s0 / r->direction.s0;
-		tMax.s1 += voxelDist.s1 / r->direction.s1;
-		tMax.s2 += voxelDist.s2 / r->direction.s2;
+		t += 0.000001;	//magic number
 
-		break;
+		intersectionPoint.s0 += r->direction.s0 * t;
+		intersectionPoint.s1 += r->direction.s1 * t;
+		intersectionPoint.s2 += r->direction.s2 * t;
 
-	}
-	
+		startPoint.s0 = floor(intersectionPoint.s0);
+		startPoint.s1 = floor(intersectionPoint.s1);
+		startPoint.s2 = floor(intersectionPoint.s2);		
 
-	return 0;
+		if (startPoint.s0 >= size.s0) return HITORMISSBIT;
+		if (startPoint.s1 >= size.s1) return HITORMISSBIT;
+		if (startPoint.s2 >= size.s2) return HITORMISSBIT;
+
+		curPos = peekVoxel(&vs, vs.count - 1).blockPos;
+		if (curPos)
+		{
+			current = input + curPos;
+			curPos += getChildPtr(current);
+		}
+		else
+		{
+			current = 0;
+		}
+
+		depth = vs.count;
+
+		relativeSize.s0 = size.s0 >> depth;
+		relativeSize.s1 = size.s1 >> depth;
+		relativeSize.s2 = size.s2 >> depth;		
+
+		relativeCoords.s0 = startPoint.s0 % relativeSize.s0;
+		relativeCoords.s1 = startPoint.s1 % relativeSize.s1;
+		relativeCoords.s2 = startPoint.s2 % relativeSize.s2;
+
+		while (depth < maxDepth && iter < 512)
+		{
+			octant = getAndReduceOctant(&relativeCoords, &relativeSize);
+
+			curPos += octant;
+			pushVoxel(&vs, curPos, octant);
+
+			if (current)
+			{
+				if (!getValid(current, octant))
+					break;	//no need to go to next level
+			}
+		
+			current = input + curPos;
+			curPos += getChildPtr(current);
+			++depth;	//depth is 0 if the first voxel is not valid
+			++iter;
+		}
+
+		if (depth == maxDepth && getValid(current, octant))
+		{
+#ifdef PERFCOUNTERENABLED
+			atom_add(&counters->total, iter);
+#endif
+			return curPos;
+		}
+		
+		++iter;
+	}	
+#ifdef PERFCOUNTERENABLED
+		atom_add(&counters->total, iter);
+#endif
+	return HITORMISSBIT;
 
 }
 

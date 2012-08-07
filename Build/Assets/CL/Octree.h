@@ -75,7 +75,7 @@ inline BlockInfo popVoxel(VoxelStack* vs)
 	return bi;
 }
 
-inline BlockInfo peekVoxel(VoxelStack* vs, uint index)
+inline BlockInfo peekVoxel(VoxelStack* vs, int index)
 {
 	BlockInfo bi;
 	bi.blockPos = vs->blockInfo[index] & BIPOSMASK;

@@ -37,15 +37,14 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 		stepSize.y = sign(r.direction.y);
 		stepSize.z = sign(r.direction.z);
 
-		uint3 maxCoord;
 
 		intersectionPoint.x *= params->size.x;
 		intersectionPoint.y *= params->size.y;
 		intersectionPoint.z *= params->size.z;
 		
-		startPoint.x = max(floor(intersectionPoint.x), 0.0f);
-		startPoint.y = max(floor(intersectionPoint.y), 0.0f);
-		startPoint.z = max(floor(intersectionPoint.z), 0.0f);	//start point is integer position in voxel grid
+		startPoint.x = floor(intersectionPoint.x);
+		startPoint.y = floor(intersectionPoint.y);
+		startPoint.z = floor(intersectionPoint.z);	//start point is integer position in voxel grid
 
 		//if startPoint coords are equal to size, then subtract 1 to keep it inside the grid
 		if (startPoint.x == params->size.x) --startPoint.x;
@@ -60,10 +59,6 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 		tMax.z = startPoint.z - intersectionPoint.z + (stepSize.z + 1) / 2;
 
 		tMax /= r.direction.xyz;
-
-		maxCoord.x = (params->size.x + (stepSize.x * params->size.x)) / 2 + stepSize.x * 0.5 - 0.5;	//branchless, set to minus one if stepSize is negative
-		maxCoord.y = (params->size.y + (stepSize.y * params->size.y)) / 2 + stepSize.y * 0.5 - 0.5;
-		maxCoord.z = (params->size.z + (stepSize.z * params->size.z)) / 2 + stepSize.z * 0.5 - 0.5;
 		
 		bool hit = 0;
 		//hit = 1;
