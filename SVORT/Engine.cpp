@@ -115,9 +115,9 @@ void Engine::Setup()
 
 	mipLevel = 0;
 
-	voxelSize.x = 16;
-	voxelSize.y = 16;
-	voxelSize.z = 16;
+	voxelSize.x = 256;
+	voxelSize.y = 256;
+	voxelSize.z = 256;
 	
 	glGenTextures(1, &tex3D);
 	
@@ -409,8 +409,7 @@ void Engine::UpdateCL()
 	clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
 
 	size_t globalWorkSize[] = { RTWidth, RTHeight };
-
-	int counters[2];
+	
 	memset(counters, 0, sizeof(counters));
 
 	clEnqueueWriteBuffer(ocl.queue, ocl.paramBuffer, false, 0, sizeof(RTParams), &RTParams, 0, NULL, NULL);
@@ -533,6 +532,8 @@ void Engine::Display()
 	fmter % CurrentFPS;
 	PrintText(windowSize, Vec2(Window.Width * 0.5f, Window.Height), fmter.str().c_str(), Colour::White);
 
+	glfwSetWindowTitle(fmter.str().c_str());
+
 	fmter.clear();
 	fmter.parse("Z Coord: %1%");
 	fmter % zCoord;
@@ -555,11 +556,9 @@ void Engine::Display()
 	PrintText(windowSize, Vec2(Window.Width * 0.5f, Window.Height - 120), fmter.str().c_str(), Colour::White);
 
 	fmter.clear();
-	fmter.parse("Avg. iterations: %1%");
+	fmter.parse("Avg. Iterations:     %1%");
 	fmter % averageIterations;
-	PrintText(windowSize, Vec2(Window.Width * 0.5f, Window.Height - 160), fmter.str().c_str(), Colour::White);
-
-	glfwSetWindowTitle(fmter.str().c_str());	
+	PrintText(windowSize, Vec2(Window.Width * 0.5f, Window.Height - 160), fmter.str().c_str(), Colour::White);	
 
 }
 

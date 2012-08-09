@@ -83,5 +83,6 @@ private:
 	} RTParams;
 	float averageIterations;
 	int mipLevel;
+	int counters[2];
 };
 

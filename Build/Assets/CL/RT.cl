@@ -26,10 +26,13 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 
 	float4 intersectionPoint = (float4)(0.0, 0.0, 0.0, 1.0);
 
-	atom_add(&counters->numSamples, 1);	
+	
 
 	if (intersectCube(r, 0.001, 1000.0, &intersectionPoint))
 	{				
+
+		atom_add(&counters->numSamples, 1);	
+
 		uint3 startPoint;
 		int3 stepSize;
 

@@ -45,7 +45,7 @@ float4 multMatVec(const float4* vector, __constant float16* matrix)
 	return retVec;
 }
 
-Ray createRay(__constant float16* invWorldView, float2 screenPos)
+inline Ray createRay(__constant float16* invWorldView, float2 screenPos)
 {
 	Ray r;
 	r.origin = (float4)(0.0, 0.0, 0.0, 1.0);

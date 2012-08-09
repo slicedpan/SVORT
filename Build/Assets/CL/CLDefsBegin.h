@@ -10,7 +10,7 @@
 #define float16 cl_float16
 #define float4 cl_float4
 #define float3 cl_float3
-#define int4 cl_uint4
+#define int4 cl_int4
 #define ushort2 cl_ushort2
 #define ushort4 cl_ushort4
 #define short4 cl_short4
@@ -36,7 +36,9 @@ inline uint atom_add(uint* i, uint val)
 	return old;
 }
 
-inline uint min(uint x, uint y)
+
+template <typename T>
+inline T min(T x, T y)
 {
 	return (x < y) ? x : y;
 }

@@ -22,12 +22,12 @@ __kernel void OctRT(__write_only image2d_t bmp, __global Block* input, __constan
 	
 	int2 coords = (int2)(x, y);	
 
-	float4 intersectionPoint = (float4)(0.0, 0.0, 0.0, 1.0);
-
-	atom_add(&counters->numSamples, 1);	
+	float4 intersectionPoint = (float4)(0.0, 0.0, 0.0, 1.0);	
 
 	if (intersectCube(r, 0.001, 1000.0, &intersectionPoint))
 	{		
+
+		atom_add(&counters->numSamples, 1);	
 
 		float4 colour;
 		
