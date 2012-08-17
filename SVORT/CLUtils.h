@@ -10,7 +10,7 @@ struct oclKernel
 	bool ok;
 };
 
-inline oclKernel CreateKernel(const char* source, const char* kernelName, cl_context context, cl_device_id device)
+inline oclKernel CreateKernel(const char* source, const char* kernelName, cl_context context, cl_device_id device, const char* filename = "")
 {
 	oclKernel ret;
 	ret.ok = true;
@@ -24,13 +24,20 @@ inline oclKernel CreateKernel(const char* source, const char* kernelName, cl_con
 		ret.ok = false;
 		return ret;
 	}
+
+	char buildOptions[256];
+	sprintf(buildOptions, "-I Assets\\CL");
+#ifdef INTEL
+	sprintf(buildOptions + 12, " -g -s \"C:\\Users\\Owen\\Documents\\Visual Studio 2010\\Projects\\SVORT\\Build\\%s\"", filename);
+#endif
 	
 	printf("Creating program...\n");
+	printf("Build options: %s\n", buildOptions);
 	ret.program = clCreateProgramWithSource(context, 1, &source, NULL, &resultCL);
 	CLGLError(resultCL);
 
 	printf("Building program...\n");
-	resultCL = clBuildProgram(ret.program, 1, &device, "-I Assets/CL/", NULL, NULL);
+	resultCL = clBuildProgram(ret.program, 1, &device, buildOptions, NULL, NULL);
 	CLGLError(resultCL);
 
 	bool compiled = resultCL == CL_SUCCESS;
@@ -87,7 +94,7 @@ inline oclKernel CreateKernelFromFile(const char* filename, const char* kernelNa
 		printf("Could not open file %s!\n", filename);
 		return ret;
 	}
-	ret = CreateKernel(source, kernelName, context, device);
+	ret = CreateKernel(source, kernelName, context, device, filename);
 	free(source);
 	return ret;
 }

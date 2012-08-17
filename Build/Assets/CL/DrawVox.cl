@@ -8,8 +8,8 @@ __kernel void DrawVoxels(__write_only image2d_t output, __global int* input, uin
 	uint2 dimensions = (uint2)(get_image_width(output), get_image_height(output));
 		
 	uint3 coords;
-	coords.x = sizeAndLayer.x * ((float)screenCoords.x / (float)(dimensions.x - 1));
-	coords.y = sizeAndLayer.y * ((float)screenCoords.y / (float)(dimensions.y - 1));
+	coords.x = sizeAndLayer.x * ((float)screenCoords.x / (float)(dimensions.x));
+	coords.y = sizeAndLayer.y * ((float)screenCoords.y / (float)(dimensions.y));
 	coords.z = sizeAndLayer.w;	
 	
 	uint pos = mipOffset.y + GetGridOffset(coords, sizeAndLayer.xyz);	
@@ -18,8 +18,8 @@ __kernel void DrawVoxels(__write_only image2d_t output, __global int* input, uin
 	
 	float4 colour = UnpackColour(input[pos]);
 	
-	if (colour.w == 0.0)
-		colour.x = 1.0;
+	if (colour.w == 0.0f)
+		colour.x = 1.0f;
 	
 	write_imagef(output, screenCoords, colour);
 	

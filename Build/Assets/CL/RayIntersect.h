@@ -1,7 +1,7 @@
 
 bool intersectSphere(Ray r, float radius, float4* intersectionPoint)
 {
-	float4 endPoint = r.origin + (1000.0 * r.direction);
+	float4 endPoint = r.origin + (1000.0f * r.direction);
 	float dist = length(endPoint.xyz - r.origin.xyz);
 	float4 tmp1 = - r.origin;
 	float4 tmp2 = endPoint - r.origin;
@@ -9,7 +9,7 @@ bool intersectSphere(Ray r, float radius, float4* intersectionPoint)
 	float u = tmp1.x + tmp1.y + tmp1.z;
 	u /= dist * dist;
 	
-	if (u < 0.0  || u > 1.0)
+	if (u < 0.0f  || u > 1.0f)
 		return false;
 	*intersectionPoint = r.origin + u * tmp2;
 	if (length((*intersectionPoint).xyz) < radius)
@@ -20,24 +20,24 @@ bool intersectSphere(Ray r, float radius, float4* intersectionPoint)
 bool intersectCube(Ray r, float t0, float t1, float4* intersectionPoint)
 {
 	float tmin, tmax, tymin, tymax, tzmin, tzmax;
-	if (r.direction.x >= 0) 
+	if (r.direction.x >= 0.0f) 
 	{
 		tmin = (- r.origin.x) / r.direction.x;
-		tmax = (1 - r.origin.x) / r.direction.x;
+		tmax = (1.0f - r.origin.x) / r.direction.x;
 	}
 	else 
 	{
-		tmin = (1 - r.origin.x) / r.direction.x;
+		tmin = (1.0f - r.origin.x) / r.direction.x;
 		tmax = (- r.origin.x) / r.direction.x;
 	}
 	if (r.direction.y >= 0) 
 	{
 		tymin = (- r.origin.y) / r.direction.y;
-		tymax = (1 - r.origin.y) / r.direction.y;
+		tymax = (1.0f - r.origin.y) / r.direction.y;
 	}
 	else 
 	{
-		tymin = (1 - r.origin.y) / r.direction.y;
+		tymin = (1.0f - r.origin.y) / r.direction.y;
 		tymax = (- r.origin.y) / r.direction.y;
 	}	
 	if ( (tmin > tymax) || (tymin > tmax) )
@@ -50,11 +50,11 @@ bool intersectCube(Ray r, float t0, float t1, float4* intersectionPoint)
 	if (r.direction.z >= 0) 
 	{
 		tzmin = (- r.origin.z) / r.direction.z;
-		tzmax = (1 - r.origin.z) / r.direction.z;
+		tzmax = (1.0f - r.origin.z) / r.direction.z;
 	}
 	else 
 	{
-		tzmin = (1 - r.origin.z) / r.direction.z;
+		tzmin = (1.0f - r.origin.z) / r.direction.z;
 		tzmax = (- r.origin.z) / r.direction.z;
 	}
 	if ( (tmin > tzmax) || (tzmin > tmax) )

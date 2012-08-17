@@ -2,8 +2,9 @@
 #include "GLFW\GLFWEngine.h"
 #include "VolumeData.h"
 #include "CL\cl.h"
-#include "OctreeBuilder.h"
 #include "VoxelBuilder.h"
+#include "OctreeBuilder.h"
+
 
 class ShaderManager;
 class Camera;
@@ -71,6 +72,8 @@ private:
 		cl_program octRTProgram;
 		cl_mem normalLookup;
 	} ocl;
+
+	unsigned int* outputImage;
 	
 	struct
 	{

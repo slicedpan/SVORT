@@ -2,6 +2,7 @@
 
 #include <CL\cl.h>
 
+
 class OctreeBuilder
 {
 public:

@@ -49,144 +49,156 @@ uint findStartPoint(uint4 startPoint, __global Block* input, VoxelStack* vs, uin
 	return curPos;
 }
 
-uint castRay(uint4 startVoxel, float4 intersectionPoint, __global Block* input, VoxelStack* vs, Ray* r, uint4 size, __global Counters* counters, uint maxLOD)
+#ifndef HOSTINCLUDE
+
+uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4 size, __global Counters* counters, uint maxLOD)
 {
-
-	int3 stepSize;
-
-	stepSize.s0 = sign(r->direction.s0);
-	stepSize.s1 = sign(r->direction.s1);
-	stepSize.s2 = sign(r->direction.s2);
-
-	float3 stepFlag;
-	stepFlag.s0 = ((float)stepSize.s0 * 0.5) + 0.5;
-	stepFlag.s1 = ((float)stepSize.s1 * 0.5) + 0.5;
-	stepFlag.s2 = ((float)stepSize.s2 * 0.5) + 0.5;
-
-	uint maxDepth = min(maxLOD, size.s3);
-
-	float3 tDelta;
-	tDelta.s0 = fabs(1.0 / r->direction.s0);
-	tDelta.s1 = fabs(1.0 / r->direction.s1);
-	tDelta.s2 = fabs(1.0 / r->direction.s2);		 
-
-	float3 tMax;
-	tMax.s0 = (startVoxel.s0 - intersectionPoint.s0 + stepFlag.s0);	
-	tMax.s1 = (startVoxel.s1 - intersectionPoint.s1 + stepFlag.s1);
-	tMax.s2 = (startVoxel.s2 - intersectionPoint.s2 + stepFlag.s2);	
-
-	tMax.s0 /= r->direction.s0;
-	tMax.s1 /= r->direction.s1;
-	tMax.s2 /= r->direction.s2;
-	
+	int rayOctantMask = 0;
+	int4 octants = (r->direction < FZEROS) * OCTANTMASKS;
+	rayOctantMask -= octants.x + octants.y + octants.z;
+	uint maxDepth = min(maxLOD, size.w);
+	float4 stepSize = sign(r->direction);	
+	float4 fSize = (float4)(size.x, size.y, size.z, size.w);
+	float4 initialPosition = fmod(r->origin * fSize * stepSize + fSize, fSize);
+	VoxelStack vs;
+	initStack(&vs, size.s0);
 
 	uint iter = 0;
 
-	__global Block* blockPtr;
-	BlockInfo bi;
+	float4 relativeSize = fSize;	
+	float4 relativeCoords = initialPosition;
 
-	while(iter < 512)
-	{			
-		uint nextOctant;		
-		bi = popVoxel(vs);	 
+	uint curPos = 0;
+	__global Block* current = input;
 
-		if(tMax.s0 < tMax.s2) 
-		{
-			if(tMax.s0 < tMax.s1) 
-			{				
-				tMax.s0 = tMax.s0 + tDelta.s0;
-				while (bi.octantMask & XMASK == stepSize.s0)
-				{
-					if (isEmpty(vs))
-						return HITORMISSBIT;	//there are no further voxels in the x-direction
-					bi = popVoxel(vs);	
-				}
-				nextOctant = bi.octantMask + XMASK;
-				pushVoxel(vs, bi.blockPos + XMASK, nextOctant);
-				startVoxel.s0 += stepSize.s0;
-			} 
-			else 
-			{
-				tMax.s1 = tMax.s1 + tDelta.s1;
-				while (bi.octantMask & YMASK == stepSize.s1)
-				{
-					if (isEmpty(vs))
-						return HITORMISSBIT;
-					bi = popVoxel(vs);
-				}		
-				nextOctant = bi.octantMask + YMASK;
-				pushVoxel(vs, bi.blockPos + YMASK, nextOctant);
-				startVoxel.s1 += stepSize.s1;
-			}
-		} 
-		else 
-		{
-			if(tMax.s1 < tMax.s2) 
-			{			
-				tMax.s1 = tMax.s1 + tDelta.s1;
-				while (bi.octantMask & YMASK == stepSize.s1)
-				{
-					if (isEmpty(vs))
-						return HITORMISSBIT;
-					bi = popVoxel(vs);
-				}		
-				nextOctant = bi.octantMask + YMASK;
-				pushVoxel(vs, bi.blockPos + YMASK, nextOctant);
-				startVoxel.s1 += stepSize.s1;
-			}
-			else 
-			{			
-				tMax.s2 = tMax.s2 + tDelta.s2;
-				while (bi.octantMask & ZMASK == stepSize.s2)
-				{
-					if (isEmpty(vs))
-						return HITORMISSBIT;
-					bi = popVoxel(vs);
-				}			
-				nextOctant = bi.octantMask + ZMASK;
-				pushVoxel(vs, bi.blockPos + ZMASK, nextOctant);
-				startVoxel.s2 += stepSize.s2;
-			}
-		}
+	r->direction = max(fabs(r->direction), (float4)(1e-37f, 1e-37f, 1e-37f, 0.0f));
+	float4 tDelta = 1.0f / r->direction;
 
-		bi = peekVoxel(vs, vs->count - 2);
-		blockPtr = input + bi.blockPos;
+	uint octant;
+
+	pushVoxel(&vs, curPos, 7 ^ rayOctantMask + 8);	//root voxel
+
+	while (vs.count < maxDepth)
+	{
+		octant = getAndReduceOctantf(&relativeCoords, &relativeSize) ^ rayOctantMask;
+
+		curPos += getChildPtr(current);
+		curPos += octant;
+		pushVoxel(&vs, curPos, octant);	
+
+		if (!getValid(current, octant))
+			break;
 
 		++iter;
-
-		if (!getValid(blockPtr, nextOctant))
-		{			
-			continue;		
-		}
-		else
-		{
-			if (vs->count == maxDepth)
-			{
-				bi = popVoxel(vs);
-				return bi.blockPos;
-			}
-			else
-			{
-				
-			}
-		}		
 	}
 
+	if (vs.count == maxDepth)
+	{
 #ifdef PERFCOUNTERENABLED
-	if (counters)
 		atom_add(&counters->total, iter);
 #endif
+		return curPos;
+	}
 
-	return 0;
+	iter = 0;
+
+	BlockInfo bi;
+	float t = 0.0f;
+
+	float4 lastPosition = initialPosition;
+
+	while (iter < 512)
+	{
+
+		//traversal
+
+		float4 tMax;
+		float4 sideLength;
+		float deltaT;
+		sideLength = fSize * pow(0.5f, vs.count - 1);
+		tMax = sideLength - fmod(lastPosition, sideLength);
+		tMax *= tDelta;
+		deltaT = min(tMax.x, min(tMax.y, tMax.z));
+		t += deltaT;
+
+		int stepMask = isequal(deltaT, tMax.x) + isequal(deltaT, tMax.y) * YMASK + isequal(deltaT, tMax.z) * ZMASK;
+		bi = popVoxel(&vs);
+
+		lastPosition = initialPosition + r->direction * t;
+
+		//ascent
+
+		while (((bi.octantMask ^ rayOctantMask) & stepMask) != 0)
+		{
+			bi = popVoxel(&vs);
+			if (bi.blockPos == 0)	//root voxel
+			{
+#ifdef PERFCOUNTERENABLED
+				atom_add(&counters->total, iter);
+#endif
+				return HITORMISSBIT;
+			}
+			++iter;
+		}
+
+		curPos = peekVoxel(&vs, vs.count - 1).blockPos;
+		current = input + curPos;
+		curPos += getChildPtr(current);
+		octant = bi.octantMask ^ stepMask;
+		curPos += octant;		
+		pushVoxel(&vs, curPos, octant);
+		if (!getValid(current, octant))		
+			continue;		
+
+		//descent
+
+		relativeSize = fSize * pow(0.5f, vs.count - 1);
+		relativeCoords = fmod(lastPosition, relativeSize);
+		uint depth = vs.count;
+
+		while (depth < maxDepth)
+		{
+			octant = getAndReduceOctantf(&relativeCoords, &relativeSize) ^ rayOctantMask;	
+
+			curPos += octant;
+			pushVoxel(&vs, curPos, octant);
+
+			if (current)
+			{
+				if (!getValid(current, octant))
+					break;	//no need to go to next level
+			}			
+		
+			current = input + curPos;
+			curPos += getChildPtr(current);
+			++iter;
+			++depth;
+		}
+
+		if (depth == maxDepth)
+		{
+#ifdef PERFCOUNTERENABLED
+			atom_add(&counters->total, iter);
+#endif
+			return curPos;
+		}
+		++iter;
+	}
+	
+	return curPos;
 }
 
-uint rayTrace(float4 intersectionPoint, __global Block* input, Ray* r, uint4 size, __global Counters* counters, uint maxLOD)
+#endif
+
+uint rayTrace(__global Block* input, Ray* r, uint4 size, __global Counters* counters, uint maxLOD)
 {
 
 	uint4 startPoint;
 	VoxelStack vs;
 
 	initStack(&vs, size.s0);
+
+	float4 intersectionPoint = r->origin;
 
 	intersectionPoint.s0 *= size.s0;
 	intersectionPoint.s1 *= size.s1;
@@ -201,34 +213,44 @@ uint rayTrace(float4 intersectionPoint, __global Block* input, Ray* r, uint4 siz
 	if (startPoint.s2 == size.s2) --startPoint.s2;
 
 	float4 stepSize;
+#ifdef HOSTINCLUDE
 	stepSize.s0 = sign(r->direction.s0);
 	stepSize.s1 = sign(r->direction.s1);
 	stepSize.s2 = sign(r->direction.s2);
+#else
+	stepSize = sign(r->direction);
+#endif
 
 	uint4 stepFlag;
-	stepFlag.s0 = (stepSize.s0 * 0.5 + 0.5);
-	stepFlag.s1 = (stepSize.s1 * 0.5 + 0.5);
-	stepFlag.s2 = (stepSize.s2 * 0.5 + 0.5);
+	stepFlag.s0 = (stepSize.s0 * 0.5f + 0.5f);
+	stepFlag.s1 = (stepSize.s1 * 0.5f + 0.5f);
+	stepFlag.s2 = (stepSize.s2 * 0.5f + 0.5f);
 
 	float4 tOffset;
 
-	int zero = (int)ceil(fabs(r->direction.s0 - 0.0));
+	int zero;
+
+#ifdef HOSTINCLUDE
+	zero = (int)ceil(fabs(r->direction.s0 - 0.0));
 	r->direction.s0 += (!zero) * FUDGE;
-	tOffset.s0 = (!zero) * 1e126;
+	tOffset.s0 = (!zero) * 1e38;
 	zero = (int)ceil(fabs(r->direction.s1 - 0.0));
 	r->direction.s1 += (!zero) * FUDGE;
-	tOffset.s1 = (!zero) * 1e126;
+	tOffset.s1 = (!zero) * 1e38;
 	zero = (int)ceil(fabs(r->direction.s2 - 0.0));
 	r->direction.s2 += (!zero) * FUDGE;	//to prevent 0.0 / 0.0
-	tOffset.s2 = (!zero) * 1e126;
-
-	uint rayOctantMask = 0;
-	if (r->direction.s0 > 0.0)
-		rayOctantMask |= XMASK;
-	if (r->direction.s1 > 0.0)
-		rayOctantMask |= YMASK;
-	if (r->direction.s2 > 0.0)
-		rayOctantMask |= ZMASK;
+	tOffset.s2 = (!zero) * 1e38;	
+#else
+	zero = (int)ceil(fabs(r->direction.s0));
+	r->direction.s0 += (!zero) * FUDGE;
+	tOffset.s0 = (!zero) * 1e38f;
+	zero = (int)ceil(fabs(r->direction.s1));
+	r->direction.s1 += (!zero) * FUDGE;
+	tOffset.s1 = (!zero) * 1e38f;
+	zero = (int)ceil(fabs(r->direction.s2));
+	r->direction.s2 += (!zero) * FUDGE;	//to prevent 0.0 / 0.0
+	tOffset.s2 = (!zero) * 1e38f;
+#endif
 
 	uint depth = 0;
 	uint maxDepth = min(maxLOD, size.s3);
@@ -276,14 +298,23 @@ uint rayTrace(float4 intersectionPoint, __global Block* input, Ray* r, uint4 siz
 
 	BlockInfo bi;
 
-	int4 voxelDist;	
+	uint4 voxelDist;	
 	uint sideLength;
+#ifdef HOSTINCLUDE
+	uint4 ones = {{1, 1, 1, 1}};
+	uint4 zeros = {{0, 0, 0, 0}};
+#else
+	uint4 ones = (uint4)(1, 1, 1, 1);
+	uint4 zeros = (uint4)(0, 0, 0, 0);
+#endif
 
-	while(iter < 64)
+	while(iter < 512)
 	{
 		bi = popVoxel(&vs);
 
 		sideLength = size.s0 >> vs.count + 1;
+
+#ifdef HOSTINCLUDE
 		
 		voxelDist.s0 = startPoint.s0 % sideLength;
 		voxelDist.s0 = (1 - stepFlag.s0) * voxelDist.s0 + (stepFlag.s0) * (sideLength - voxelDist.s0 - 1);
@@ -294,9 +325,14 @@ uint rayTrace(float4 intersectionPoint, __global Block* input, Ray* r, uint4 siz
 		voxelDist.s2 = startPoint.s2 % sideLength;
 		voxelDist.s2 = (1 - stepFlag.s2) * voxelDist.s2 + (stepFlag.s2) * (sideLength - voxelDist.s2 - 1);		
 
+#else
+		voxelDist = startPoint % (uint4)(sideLength, sideLength, sideLength, 0);
+		voxelDist = (ones - stepFlag) * voxelDist + stepFlag * ((uint4)(sideLength, sideLength, sideLength, 0) - voxelDist - ones);
+#endif
+
 		float4 tMax;
 		float4 nextVoxel;
-		float t = 0.0;
+		float t = 0.0f;
 
 		nextVoxel.s0 = (startPoint.s0 - intersectionPoint.s0) * stepSize.s0 + stepFlag.s0;	//distance to nearest voxel boundary at highest LOD
 		nextVoxel.s1 = (startPoint.s1 - intersectionPoint.s1) * stepSize.s1 + stepFlag.s1;
@@ -306,13 +342,18 @@ uint rayTrace(float4 intersectionPoint, __global Block* input, Ray* r, uint4 siz
 		nextVoxel.s1 += voxelDist.s1;
 		nextVoxel.s2 += voxelDist.s2;		
 
+#ifdef HOSTINCLUDE
 		tMax.s0 = tOffset.s0 + nextVoxel.s0 / (r->direction.s0 * stepSize.s0);
 		tMax.s1 = tOffset.s1 + nextVoxel.s1 / (r->direction.s1 * stepSize.s1);
 		tMax.s2 = tOffset.s2 + nextVoxel.s2 / (r->direction.s2 * stepSize.s2);
+#else
+		tMax = tOffset + nextVoxel / (r->direction * stepSize);
+#endif
 
 		t = min(tMax.s0, min(tMax.s1, tMax.s2));
 
 		int4 oldStartPoint;
+
 		oldStartPoint.s0 = startPoint.s0;
 		oldStartPoint.s1 = startPoint.s1;
 		oldStartPoint.s2 = startPoint.s2;
@@ -341,7 +382,7 @@ uint rayTrace(float4 intersectionPoint, __global Block* input, Ray* r, uint4 siz
 			zero = (int)ceil(intersectionPoint.s1 - floor(intersectionPoint.s1));
 			startPoint.s1 -= (1 - stepFlag.s1) * (!zero);
 		}
-		else if (tMax.s2 == t)
+		else
 		{
 			//Z
 			intersectionPoint.s0 += r->direction.s0 * t;
@@ -352,11 +393,11 @@ uint rayTrace(float4 intersectionPoint, __global Block* input, Ray* r, uint4 siz
 			startPoint.s1 = floor(intersectionPoint.s1);
 			startPoint.s2 = floor(intersectionPoint.s2);
 			startPoint.s2 -= (1 - stepFlag.s2) * (!zero);
-		}		
+		}	
 
-		oldStartPoint.s0 = abs(oldStartPoint.s0 - (int)startPoint.s0);
-		oldStartPoint.s1 = abs(oldStartPoint.s1 - (int)startPoint.s1);
-		oldStartPoint.s2 = abs(oldStartPoint.s2 - (int)startPoint.s2);
+		oldStartPoint.s0 = abs(oldStartPoint.s0 - (int)startPoint.s0) > voxelDist.s0;
+		oldStartPoint.s1 = abs(oldStartPoint.s1 - (int)startPoint.s1) > voxelDist.s1;
+		oldStartPoint.s2 = abs(oldStartPoint.s2 - (int)startPoint.s2) > voxelDist.s2;
 	
 		if (oldStartPoint.s0)
 		{
@@ -433,20 +474,22 @@ uint rayTrace(float4 intersectionPoint, __global Block* input, Ray* r, uint4 siz
 #endif
 			return HITORMISSBIT;
 		}
-
-		curPos = peekVoxel(&vs, vs.count - 1).blockPos;
-		if (curPos)
+		
+		if (!isEmpty(&vs))
 		{
+			curPos = peekVoxel(&vs, vs.count - 1).blockPos;
 			current = input + curPos;
 			curPos += getChildPtr(current);
 		}
 		else
 		{
+			curPos = 0;
 			current = 0;
 		}
 
 		depth = vs.count;
 
+#ifdef HOSTINCLUDE
 		relativeSize.s0 = size.s0 >> depth;
 		relativeSize.s1 = size.s1 >> depth;
 		relativeSize.s2 = size.s2 >> depth;		
@@ -454,11 +497,17 @@ uint rayTrace(float4 intersectionPoint, __global Block* input, Ray* r, uint4 siz
 		relativeCoords.s0 = startPoint.s0 % relativeSize.s0;
 		relativeCoords.s1 = startPoint.s1 % relativeSize.s1;
 		relativeCoords.s2 = startPoint.s2 % relativeSize.s2;
+#else
+		relativeSize = rotate(size, (uint4)(32 - depth, 32 - depth, 32 - depth, 32 - depth));
+		relativeCoords = startPoint % relativeSize;
+#endif
+
+		uint nextPos = 0;
 
 		while (depth < maxDepth && iter < 512)
 		{
 			octant = getAndReduceOctant(&relativeCoords, &relativeSize);
-
+			curPos += nextPos;
 			curPos += octant;
 			pushVoxel(&vs, curPos, octant);
 
@@ -469,7 +518,7 @@ uint rayTrace(float4 intersectionPoint, __global Block* input, Ray* r, uint4 siz
 			}
 		
 			current = input + curPos;
-			curPos += getChildPtr(current);
+			nextPos = getChildPtr(current);
 			++depth;	//depth is 0 if the first voxel is not valid
 			++iter;
 			++descent;

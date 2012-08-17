@@ -23,6 +23,8 @@
 #define __global
 #define __constant
 
+#define HOSTINCLUDE
+
 inline float dot(float4 u, float4 v)
 {
 	return u.s0 * v.s0 + u.s1 * v.s1 + u.s2 * v.s2 + u.s3 * v.s3;		 
@@ -36,6 +38,11 @@ inline uint atom_add(uint* i, uint val)
 	return old;
 }
 
+template <typename T>
+int isgreater(T x, T y)
+{
+	return x > y;
+}
 
 template <typename T>
 inline T min(T x, T y)

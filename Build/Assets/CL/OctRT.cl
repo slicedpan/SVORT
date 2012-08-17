@@ -22,18 +22,18 @@ __kernel void OctRT(__write_only image2d_t bmp, __global Block* input, __constan
 	
 	int2 coords = (int2)(x, y);	
 
-	float4 intersectionPoint = (float4)(0.0, 0.0, 0.0, 1.0);	
+	float4 intersectionPoint = (float4)(0.0f, 0.0f, 0.0f, 1.0f);	
 
-	if (intersectCube(r, 0.001, 1000.0, &intersectionPoint))
+	if (intersectCube(r, 0.001f, 1000.0f, &intersectionPoint))
 	{		
-
+		r.origin = intersectionPoint;
 		atom_add(&counters->numSamples, 1);	
 
 		float4 colour;
 		
-		uint curPos;	
+		uint curPos = 0;	
 		__global Block* current;	
-		curPos = rayTrace(intersectionPoint, input, &r, params->size, counters, 32);
+		curPos = rayTrace2(input, &r, params->size, counters, 32);
 		if (curPos & HITORMISSBIT)
 			return;
 		current = input + (curPos & POSMASK);

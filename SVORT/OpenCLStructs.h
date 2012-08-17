@@ -2,6 +2,7 @@
 
 #include <CL\cl.h>
 
+
 struct VoxelInfo
 {
 	cl_uint numVoxels;

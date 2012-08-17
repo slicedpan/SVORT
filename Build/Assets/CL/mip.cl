@@ -11,8 +11,8 @@ __kernel void Mip(__global int* buffer, uint4 inSizeOffset, uint4 outSizeOffset,
 	
 	uint3 offsets = (uint3)(1, inSizeOffset.x, inSizeOffset.x * inSizeOffset.y);
 	
-	float4 colours[8];
-	colours[0] = UnpackColour(buffer[inPos]);
+	float4 colours[8];	
+	colours[0] = UnpackColour(buffer[inPos]);	
 	colours[1] = UnpackColour(buffer[inPos + offsets.x]);
 	colours[2] = UnpackColour(buffer[inPos + offsets.x + offsets.y]);
 	colours[3] = UnpackColour(buffer[inPos + offsets.x + offsets.z]);
@@ -21,25 +21,29 @@ __kernel void Mip(__global int* buffer, uint4 inSizeOffset, uint4 outSizeOffset,
 	colours[6] = UnpackColour(buffer[inPos + offsets.y + offsets.z]);
 	colours[7] = UnpackColour(buffer[inPos + offsets.z]);	
 	
-	float4 totalColour = (float4)(0.0, 0.0, 0.0, 0.0);	
+	float4 totalColour = (float4)(0.0f, 0.0f, 0.0f, 0.0f);	
 	
 	bool alpha = 0;
+	int occupied = 0;
 
 	for (int i = 0; i < 8; ++i)
 	{
 		totalColour += colours[i];
-		if (colours[i].w > 0.0 && !alpha)
-			alpha = 1;
+		if (colours[i].w > 0.0f)
+		{
+			++occupied;
+		}
 	}		
-	
-	totalColour /= 8.0;
-	
-	if (alpha)
-		totalColour.w = 1.0;
+	if (occupied)
+	{
+		totalColour /= occupied;
+		totalColour.w = 1.0f;
+	}
 	else
 	{
+		totalColour = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
 		atom_sub(&voxInfo->numLeafVoxels, 7);
-	}
+	}	
 	
 	buffer[outPos] = PackColour(totalColour);
 	

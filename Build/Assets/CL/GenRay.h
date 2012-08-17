@@ -48,9 +48,9 @@ float4 multMatVec(const float4* vector, __constant float16* matrix)
 inline Ray createRay(__constant float16* invWorldView, float2 screenPos)
 {
 	Ray r;
-	r.origin = (float4)(0.0, 0.0, 0.0, 1.0);
+	r.origin = (float4)(0.0f, 0.0f, 0.0f, 1.0f);
 	r.origin = multMatVec(&r.origin, invWorldView);
-	r.direction = (float4)(screenPos.x * 2.0 - 1.0, screenPos.y * 2.0 - 1.0, -1.0, 0.0);
+	r.direction = (float4)(screenPos.x * 2.0f - 1.0f, screenPos.y * 2.0f - 1.0f, -1.0f, 0.0f);
 	r.direction = multMatVec(&r.direction, invWorldView);
 	r.direction.xyz = normalize(r.direction.xyz);
 	return r;

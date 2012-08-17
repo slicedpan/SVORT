@@ -1,4 +1,4 @@
-#define CL_USE_DEPRECATED_OPENCL_1_1_APIS
+//#define CL_USE_DEPRECATED_OPENCL_1_1_APIS
 
 #include "Engine.h"
 #include "GLFW\GLFWEngine.h"
@@ -17,7 +17,7 @@
 #include <boost\format.hpp>
 #include "Utils.h"
 #include "StaticMesh.h"
-#include "CL\cl_gl.h"
+#include <CL\cl_gl.h>
 #include "GLGUI\Primitives.h"
 #include "CLUtils.h"
 #include "OpenCLStructs.h"
@@ -83,8 +83,11 @@ void Engine::Init3DTexture()
 	StaticMesh* mesh = mesh1;
 	if (!drawMesh1)
 		mesh = mesh2;  	
-
-	voxelBuilder.Build(mesh, &voxelSize.x, shaders["Basic"], ocl.voxInfo, ocl.normalLookup);
+#ifdef INTEL
+	voxelBuilder.BuildCPU(mesh, &voxelSize.x, shaders["Basic"], ocl.voxInfo, ocl.normalLookup);
+#else
+	voxelBuilder.BuildGL(mesh, &voxelSize.x, shaders["Basic"], ocl.voxInfo, ocl.normalLookup);
+#endif
 	ocl.volumeData = voxelBuilder.GetVoxelData();	
 
 	OctreeInfo oi;
@@ -108,16 +111,21 @@ void Engine::Setup()
 	
 
 	clDraw = false;
-	voxels = true;
+	voxels = false;
 
 	RTWidth = Window.Width * 0.75;
 	RTHeight = Window.Height;
 
-	mipLevel = 0;
-
-	voxelSize.x = 256;
-	voxelSize.y = 256;
-	voxelSize.z = 256;
+	mipLevel = 3;
+#ifdef INTEL
+	voxelSize.x = 16;
+	voxelSize.y = 16;
+	voxelSize.z = 16;
+#else
+	voxelSize.x = 16;
+	voxelSize.y = 16;
+	voxelSize.z = 16;
+#endif
 	
 	glGenTextures(1, &tex3D);
 	
@@ -165,7 +173,7 @@ void Engine::Setup()
 	drawQuad = false;
 	drawMesh1 = true;
 	
-	zCoord = 1.0f; 	
+	zCoord = 1.35f; 	
 	SetupOpenCL();
 	Init3DTexture();
 	octreeBuilder.Build(ocl.volumeData, &voxelSize.x, ocl.octInfo, ocl.voxInfo);
@@ -173,17 +181,6 @@ void Engine::Setup()
 	if (ocl.octRTKernel)
 		clSetKernelArg(ocl.octRTKernel, 1, sizeof(cl_mem), &ocl.octreeData);
 	CreateRTKernel();
-
-
-	cl_uint iCol;
-	cl_float4 colour;
-	
-	Colour::Copy4(colour.s, Colour::Magenta);
-	iCol = PackColour(colour);
-	cl_float4 colour2;
-
-	colour2 = UnpackColour(iCol);
-
 
 }
 
@@ -195,7 +192,7 @@ void Engine::CreateRTKernel()
 	if (ocl.rtProgram)
 		clReleaseProgram(ocl.rtProgram);
 
-	oclKernel k = CreateKernelFromFile("Assets/CL/RT.cl", "VolRT", ocl.context, ocl.devices[0]);	
+	oclKernel k = CreateKernelFromFile("Assets\\CL\\RT.cl", "VolRT", ocl.context, ocl.devices[0]);	
 
 	if (k.ok)
 	{		
@@ -213,7 +210,7 @@ void Engine::CreateRTKernel()
 	if (ocl.octRTProgram)
 		clReleaseProgram(ocl.octRTProgram);
 
-	k = CreateKernelFromFile("Assets/CL/OctRT.cl", "OctRT", ocl.context, ocl.devices[0]);
+	k = CreateKernelFromFile("Assets\\CL\\OctRT.cl", "OctRT", ocl.context, ocl.devices[0]);
 
 	if (k.ok)
 	{
@@ -273,9 +270,21 @@ void Engine::SetupOpenCL()
     if (resultCL != CL_SUCCESS)
         throw (std::string("InitCL()::Error: Getting platform ids (clGetPlatformIDs)"));
 
-	targetPlatform = allPlatforms[0];
+
 
     char pbuff[128];
+
+	for (int i = 0; i < numPlatforms; ++i)
+	{
+		clGetPlatformInfo(allPlatforms[i], CL_PLATFORM_NAME, sizeof(pbuff), pbuff, NULL);
+#ifdef INTEL
+		if (strstr(pbuff, "Intel"))
+			targetPlatform = allPlatforms[i];
+#else
+		if (strstr(pbuff, "AMD"))
+			targetPlatform = allPlatforms[i];
+#endif
+	}
 
 	clGetPlatformInfo(targetPlatform, CL_PLATFORM_NAME, sizeof(pbuff), pbuff, NULL);
 
@@ -289,8 +298,12 @@ void Engine::SetupOpenCL()
         throw (std::string("InitCL()::Error: Getting platform info (clGetPlatformInfo)"));    
 
 	
-	ocl.devices = (cl_device_id*)malloc(sizeof(cl_device_id) * 16);	
-	resultCL = clGetDeviceIDs(targetPlatform, CL_DEVICE_TYPE_GPU, 16, ocl.devices, &(ocl.deviceNum));
+	ocl.devices = (cl_device_id*)malloc(sizeof(cl_device_id) * 16);
+#ifdef INTEL
+	resultCL = clGetDeviceIDs(targetPlatform, CL_DEVICE_TYPE_CPU, 16, ocl.devices, &ocl.deviceNum);
+#else
+	resultCL = clGetDeviceIDs(targetPlatform, CL_DEVICE_TYPE_GPU, 16, ocl.devices, &ocl.deviceNum);
+#endif
 
 	printf("\n");
 
@@ -359,9 +372,19 @@ void Engine::SetupOpenCL()
 	ocl.rtCounterBuffer = clCreateBuffer(ocl.context, CL_MEM_WRITE_ONLY, sizeof(int) * 2, NULL, &resultCL);
 	CLGLError(resultCL);
 
+#ifdef INTEL
+	printf("Creating output buffer...\n");
+	cl_image_format colourFormat;
+	colourFormat.image_channel_data_type = CL_UNORM_INT8;
+	colourFormat.image_channel_order = CL_RGBA;
+	outputImage = (unsigned int*)malloc(sizeof(unsigned int) * RTWidth * RTHeight);
+	ocl.output = clCreateImage2D(ocl.context, CL_MEM_WRITE_ONLY | CL_MEM_USE_HOST_PTR, &colourFormat, RTWidth, RTHeight, 0, outputImage, &resultCL);
+	CLGLError(resultCL);
+#else
 	printf("Creating output buffer from OpenGL texture...\n");
 	ocl.output = clCreateFromGLTexture2D(ocl.context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, fbos["RayTrace"]->GetTextureID(0), &resultCL);
 	CLGLError(resultCL);
+#endif
 
 	printf("Creating Voxel Info buffer...\n");
 	ocl.voxInfo = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(VoxelInfo), NULL, &resultCL);
@@ -400,13 +423,14 @@ void Engine::UpdateCL()
 	Mat4 invWorldView = inv(world) * cam->GetTransform();
 
 	memcpy(&RTParams.sizeX, &voxelSize.x, sizeof(int) * 3);
-	RTParams.sizeW = voxelBuilder.GetMaxNumMips();
+	RTParams.sizeW = voxelBuilder.GetMaxNumMips() - 1;
 	memcpy(RTParams.invWorldView, invWorldView.Ref(), sizeof(float) * 16);
 	RTParams.invSize[0] = 1.0 / voxelSize.x;
 	RTParams.invSize[1] = 1.0 / voxelSize.y;
 	RTParams.invSize[2] = 1.0 / voxelSize.z;
-
+#ifndef INTEL
 	clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+#endif
 
 	size_t globalWorkSize[] = { RTWidth, RTHeight };
 	
@@ -430,10 +454,12 @@ void Engine::UpdateCL()
 		}
 	}
 
-	clEnqueueReadBuffer(ocl.queue, ocl.rtCounterBuffer, true, 0, sizeof(int) * 2, &counters, 0, NULL, NULL);
-	averageIterations = (float)counters[1] / (float)counters[0];
+	clEnqueueReadBuffer(ocl.queue, ocl.rtCounterBuffer, false, 0, sizeof(int) * 2, &counters, 0, NULL, NULL);
+#ifndef INTEL
+	clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+#endif
 	clFinish(ocl.queue);
-
+	averageIterations = (float)counters[1] / (float)counters[0];
 }
 
 void Engine::DebugDrawVoxelData()
@@ -444,7 +470,7 @@ void Engine::DebugDrawVoxelData()
 	size.s[2] = voxelSize.z;
 	cl_uint4 mipOffset;	
 	mipOffset.s[1] = 0;
-	for (int i = 0; i < mipLevel % voxelBuilder.GetMaxNumMips(); ++i)
+	for (int i = 1; i < mipLevel % voxelBuilder.GetMaxNumMips(); ++i)
 	{
 		mipOffset.s[1] += (size.s[0] * size.s[1] * size.s[2]);
 		size.s[0] /= 2;
@@ -464,9 +490,13 @@ void Engine::DebugDrawVoxelData()
 		{			
 			clSetKernelArg(ocl.voxKernel, 3, sizeof(cl_uint4), &size);
 			clSetKernelArg(ocl.voxKernel, 2, sizeof(cl_uint4), &mipOffset);
-			clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+#ifndef INTEL
+			clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);			
+#endif
 			clEnqueueNDRangeKernel(ocl.queue, ocl.voxKernel, 2, NULL, workDim, NULL, 0, NULL, NULL);
+#ifndef INTEL
 			clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);			
+#endif
 		}
 	}
 	else
@@ -476,9 +506,13 @@ void Engine::DebugDrawVoxelData()
 			mipOffset.s[2] = voxelBuilder.GetMaxNumMips() - mipOffset.s[0] - 1;
 			clSetKernelArg(ocl.octDrawKernel, 3, sizeof(cl_uint4), &size);
 			clSetKernelArg(ocl.octDrawKernel, 2, sizeof(cl_uint4), &mipOffset);
+#ifndef INTEL
 			clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+#endif
 			clEnqueueNDRangeKernel(ocl.queue, ocl.octDrawKernel, 2, NULL, workDim, NULL, 0, NULL, NULL);
+#ifndef INTEL
 			clEnqueueReleaseGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
+#endif
 		}
 	}
 	clFinish(ocl.queue);
@@ -492,17 +526,26 @@ void Engine::Display()
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+#ifdef INTEL
+	memset(outputImage, 0, sizeof(unsigned int) * RTWidth * RTHeight);
+#else
 	fbos["RayTrace"]->Bind();
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	
 	fbos["RayTrace"]->Unbind();
 	glFinish();
+#endif
 
 	if (clDraw)
 		UpdateCL();
 	else
-		DebugDrawVoxelData();		
+		DebugDrawVoxelData();
+
+#ifdef INTEL
+	glBindTexture(GL_TEXTURE_2D, fbos["RayTrace"]->GetTextureID(0));
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, RTWidth, RTHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, outputImage);
+#endif
 
 	shaders["Copy"]->Use();
 	shaders["Copy"]->Uniforms["baseTex"].SetValue(0);

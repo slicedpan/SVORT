@@ -24,11 +24,9 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 	
 	int2 coords = (int2)(x, y);	
 
-	float4 intersectionPoint = (float4)(0.0, 0.0, 0.0, 1.0);
+	float4 intersectionPoint = (float4)(0.0f, 0.0f, 0.0f, 1.0f);	
 
-	
-
-	if (intersectCube(r, 0.001, 1000.0, &intersectionPoint))
+	if (intersectCube(r, 0.001f, 1000.0f, &intersectionPoint))
 	{				
 
 		atom_add(&counters->numSamples, 1);	
@@ -54,12 +52,12 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 		if (startPoint.y == params->size.y) --startPoint.y;
 		if (startPoint.z == params->size.z) --startPoint.z;
 
-		float3 tDelta = fabs(1.0 / r.direction.xyz);
+		float3 tDelta = fabs(1.0f / r.direction.xyz);
 
 		float3 tMax;
-		tMax.x = startPoint.x - intersectionPoint.x + (stepSize.x + 1) / 2;	
-		tMax.y = startPoint.y - intersectionPoint.y + (stepSize.y + 1) / 2;
-		tMax.z = startPoint.z - intersectionPoint.z + (stepSize.z + 1) / 2;
+		tMax.x = startPoint.x - intersectionPoint.x + (stepSize.x + 1) / 2.0f;	
+		tMax.y = startPoint.y - intersectionPoint.y + (stepSize.y + 1) / 2.0f;
+		tMax.z = startPoint.z - intersectionPoint.z + (stepSize.z + 1) / 2.0f;
 
 		tMax /= r.direction.xyz;
 		
@@ -88,7 +86,7 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 			
 			++iter;
 			
-			if (colour.w > 0.0)
+			if (colour.w > 0.0f)
 			{				
 				hit = true;
 				break;

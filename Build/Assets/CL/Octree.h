@@ -2,8 +2,6 @@
 #ifndef _OCTREE_H
 #define _OCTREE_H
 
-#include "CLDefsBegin.h"
-
 #define LEFTBOTTOMBACK 0
 #define RIGHTBOTTOMBACK 1
 #define LEFTTOPBACK 2
@@ -16,6 +14,13 @@
 #define XMASK 1
 #define YMASK 2
 #define ZMASK 4
+#define ALLMASKS 7
+
+#ifndef HOSTINCLUDE
+#define OCTANTMASKS (int4)(1, 2, 4, 0)
+#define FZEROS (float4)(0.0f, 0.0f, 0.0f, 0.0f)
+#define FONES (float4)(1.0f, 1.0f, 1.0f, 1.0f)
+#endif
 
 #define BIPOSMASK 536870911
 #define BIOCTMASK 3758096384
@@ -37,49 +42,38 @@ typedef struct
 typedef struct
 {
 	uint count;	
-	uint blockInfo[15];	
-	ushort4 coords[15];
-	uint maxLen;
+	uint blockPos[19];	
+	uint octant[20];
 }	VoxelStack;
 
 inline void initStack(VoxelStack* vs, uint maxSideLength)
 {
 	vs->count = 0;
-	uint mid = maxSideLength >> 1;
-	vs->coords[0].s0 = mid;
-	vs->coords[0].s1 = mid;
-	vs->coords[0].s2 = mid;
-	vs->maxLen = maxSideLength;
+	vs->blockPos[0] = 0;
+	vs->octant[0] = 0;
 }
 
 inline void pushVoxel(VoxelStack* vs, uint blockPos, uint octantMask)
 {
-	vs->blockInfo[vs->count] = blockPos;	//if this overflows 2^29 we're in trouble, however that corresponds to an svo 512GB in size (assuming a block is 8 bytes)		
-
-	uint sideLength = vs->maxLen >> (vs->count + 2);
-	vs->coords[vs->count + 1].s0 = vs->coords[vs->count].s0 + (((octantMask & XMASK) << 1) - 1) * sideLength;
-	vs->coords[vs->count + 1].s1 = vs->coords[vs->count].s1 + ((octantMask & YMASK) - 1) * sideLength;
-	vs->coords[vs->count + 1].s2 = vs->coords[vs->count].s2 + (((octantMask & ZMASK) >> 1) - 1) * sideLength;
-	octantMask = octantMask << 29;
-	vs->blockInfo[vs->count] |= octantMask;
-	++vs->count;	
+	++vs->count;
+	vs->blockPos[vs->count] = blockPos;	
+	vs->octant[vs->count] = octantMask;	
 }
 
 inline BlockInfo popVoxel(VoxelStack* vs)
 {
-	BlockInfo bi;
+	BlockInfo bi;	
+	bi.blockPos = vs->blockPos[vs->count];		//first (least significant) 29 bits
+	bi.octantMask = vs->octant[vs->count];	//last (most significant) three bits
 	--vs->count;
-	bi.blockPos = vs->blockInfo[vs->count] & BIPOSMASK;		//first (least significant) 29 bits
-	bi.octantMask = (vs->blockInfo[vs->count] & BIOCTMASK) >> 29;	//last (most significant) three bits
-	bi.centre = vs->coords[vs->count + 1];
 	return bi;
 }
 
 inline BlockInfo peekVoxel(VoxelStack* vs, int index)
 {
 	BlockInfo bi;
-	bi.blockPos = vs->blockInfo[index] & BIPOSMASK;
-	bi.octantMask = (vs->blockInfo[index] & BIOCTMASK) >> 29;
+	bi.blockPos = vs->blockPos[index + 1];
+	bi.octantMask = vs->octant[index + 1];
 	return bi;
 }
 
@@ -226,6 +220,36 @@ inline uint getOctant(uint4 position, uint4 dimensions)
 	octant = (octant & ~ZMASK) | (-f & ZMASK);
 	
 	return octant;
+}
+
+inline uint getAndReduceOctantf(float4* position, float4* dimensions)
+{
+#ifdef HOSTINCLUDE
+	(*dimensions).s0 /= 2.0f;
+	(*dimensions).s1 /= 2.0f;
+	(*dimensions).s2 /= 2.0f;
+#else
+	(*dimensions) *= (float4)(0.5f, 0.5f, 0.5f, 0.5f);
+#endif
+
+	int4 octants;
+
+#ifdef HOSTINCLUDE
+	octants.s3 += isgreater((*position).s0, (*dimensions).s0) + isgreater((*position).s1, (*dimensions).s1) * YMASK + isgreater((*position).s2, (*dimensions).s2) * ZMASK;
+#else
+	octants = (*position >= *dimensions) * OCTANTMASKS;
+	octants.w = -octants.x - octants.y - octants.z;
+#endif
+
+#ifdef HOSTINCLUDE
+	(*position).s0 = fmodf((*position).s0, (*dimensions).s0);
+	(*position).s1 = fmodf((*position).s1, (*dimensions).s1);
+	(*position).s2 = fmodf((*position).s2, (*dimensions).s2);
+#else
+	(*position) = fmod(*position, *dimensions);
+#endif
+		
+	return (uint)octants.s3;
 }
 
 inline uint getAndReduceOctant(uint4* position, uint4* dimensions)

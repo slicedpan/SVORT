@@ -11,8 +11,8 @@ __kernel void DrawOctree(__write_only image2d_t output, __global Block* input, u
 		
 	uint4 coords;
 
-	coords.x = sizeAndLayer.x * ((float)screenCoords.x / (float)(dimensions.x - 1));
-	coords.y = sizeAndLayer.y * ((float)screenCoords.y / (float)(dimensions.y - 1));
+	coords.x = sizeAndLayer.x * ((float)screenCoords.x / (float)(dimensions.x));
+	coords.y = sizeAndLayer.y * ((float)screenCoords.y / (float)(dimensions.y));
 	coords.z = sizeAndLayer.w;
 	
 	uint4 size = sizeAndLayer;
@@ -20,41 +20,35 @@ __kernel void DrawOctree(__write_only image2d_t output, __global Block* input, u
 	
 	float4 colour;
 	
-	__global Block* current = 0;
+	__global Block* current = input;
 	uint curPos = 0;
 
 	uint2 pixSize = dimensions;
 		
 	uint childOffset = 0;
-	for (int i = 0; i <= mipLevel; ++i)
+	for (int i = 0; i < mipLevel; ++i)
 	{		
 		pixSize /= 2;
 		uint octant = getAndReduceOctant(&coords, &size);
-		if (current)
-		{
-			if (!getValid(current, octant))
-			{	
-				i = 16;			
-			}
+		if (!getValid(current, octant))
+		{	
+			i = 16;			
 		}
-		curPos += octant;
-		current = input + curPos;		
-		childOffset = getChildPtr(current);
-		if (!childOffset)
-			break;
-		curPos += childOffset;	
-		
+	
+		curPos += getChildPtr(current);
+		curPos += octant;	
+		current = input + curPos;
 	}
 
 	colour = UnpackColour(current->colour);
 	
 	//colour.x = 1.0;	
 	
-	if (colour.w == 0.0)
-		colour.x = 1.0;
+	if (colour.w == 0.0f)
+		colour.x = 1.0f;
 
 	if ((screenCoords.x % pixSize.x) == 0 || (screenCoords.y % pixSize.y) == 0)
-		colour.xyz = (float3)(1.0, 1.0, 1.0);
+		colour.xyz = (float3)(1.0f, 1.0f, 1.0f);
 	
 	write_imagef(output, screenCoords, colour);
 	

@@ -32,34 +32,26 @@ __kernel void CreateOctree(__global int* input, __global Block* output, __consta
 		uint4 relativeSize = workSize.xyzz;
 		uint curPos = 0;
 		uint octant;
-		__global Block* parent = 0;		
+		__global Block* parent = output;		
 		for (int i = 0; i < op.level && i < 16; ++i)	//descend hierarchy
-		{			
+		{		
+			parent = output + curPos;	
 			//figure out which octant this voxel is in
 			octant = getAndReduceOctant(&relativeCoords, &relativeSize);
 
-			if (parent)	//parent pointer was set last iteration
-			{
-				if (!getValid(parent, octant))	//we can finish here, since there are no valid subvoxels
-					return;			
-			}
-		
-			//get pointer to parent
-			curPos += octant;
-			parent = output + curPos;
-			curPos += getChildPtr(parent);				
+			if (!getValid(parent, octant))	//we can finish here, since there are no valid subvoxels
+				return;	
+				
+			curPos += getChildPtr(parent);
+			curPos += octant;									
 			
 		}		
-		
-		octant = getOctant(relativeCoords, relativeSize);
-
-		curPos += octant;
 		current = output + curPos;
 		current->colour = input[op.inOffset + gridOffset];	//read colour data
 		current->data = 0;		
 		float4 fCol = UnpackColour(current->colour);
 		
-		if (fCol.w != 0.0)
+		if (fCol.w != 0.0f)
 		{			
 			if (op.level + 1 < octInfo->numLevels)
 			{
@@ -118,11 +110,11 @@ __kernel void CreateTestOctree(__global int* input, __global Block* output, __co
 
 		curPos += octant;
 		current = output + curPos;
-		current->colour = PackColour((float4)(relCoords.x, relCoords.y, relCoords.z, 1.0));	//read colour data
+		current->colour = PackColour((float4)(relCoords.x, relCoords.y, relCoords.z, 1.0f));	//read colour data
 		current->data = 0;		
 		float4 fCol = UnpackColour(current->colour);
 		
-		if (fCol.w != 0.0)
+		if (fCol.w != 0.0f)
 		{			
 			if (op.level + 1 < octInfo->numLevels)
 			{
