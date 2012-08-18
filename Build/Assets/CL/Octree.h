@@ -42,38 +42,73 @@ typedef struct
 typedef struct
 {
 	uint count;	
-	uint blockPos[19];	
-	uint octant[20];
+
+	uint xSwitch;
+	uint ySwitch;
+	uint zSwitch;
+
+	uint junk1;
+	uint blockPos[15];	
+	uint junk2;
+	uint octant[15];
+
 }	VoxelStack;
 
 inline void initStack(VoxelStack* vs, uint maxSideLength)
 {
 	vs->count = 0;
-	vs->blockPos[0] = 0;
-	vs->octant[0] = 0;
+
+#ifdef STACKSWITCH
+	vs->xSwitch = 0;
+	vs->ySwitch = 0;
+	vs->zSwitch = 0;
+#endif
+
 }
 
 inline void pushVoxel(VoxelStack* vs, uint blockPos, uint octantMask)
 {
-	++vs->count;
 	vs->blockPos[vs->count] = blockPos;	
-	vs->octant[vs->count] = octantMask;	
+	vs->octant[vs->count] = octantMask;
+#ifdef STACKSWITCH
+	uint switchMask = octantMask ^ vs->octant[vs->count - 1]			
+	vs->xSwitch |= (switchMask & XMASK) << vs->count;
+#endif
+	++vs->count;
+#ifdef STACKSWITCH
+	vs->ySwitch |= (switchMask & YMASK) << (vs->count);
+	vs->zSwitch |= (switchMask & ZMASK) << (vs->count + 1);
+#endif
 }
 
 inline BlockInfo popVoxel(VoxelStack* vs)
 {
 	BlockInfo bi;	
-	bi.blockPos = vs->blockPos[vs->count];		//first (least significant) 29 bits
-	bi.octantMask = vs->octant[vs->count];	//last (most significant) three bits
 	--vs->count;
+	bi.blockPos = vs->blockPos[vs->count];		
+	bi.octantMask = vs->octant[vs->count];		
 	return bi;
+}
+
+inline BlockInfo popToSwitch(VoxelStack* vs, uint octantMask)
+{	
+	uint x, y, z;
+	
+	x = (octantMask & XMASK) * (32 - clz(vs->xSwitch));
+	y = (octantMask & YMASK) * (32 - clz(vs->ySwitch));
+	z = (octantMask & ZMASK) * (32 - clz(vs->zSwitch));
+
+	vs->count = max(x, max(y, z));
+	uint clearMask = (2 << (vs->count)) - 1;
+
+	return peekVoxel(vs, vs->count);
 }
 
 inline BlockInfo peekVoxel(VoxelStack* vs, int index)
 {
 	BlockInfo bi;
-	bi.blockPos = vs->blockPos[index + 1];
-	bi.octantMask = vs->octant[index + 1];
+	bi.blockPos = vs->blockPos[index];
+	bi.octantMask = vs->octant[index];
 	return bi;
 }
 

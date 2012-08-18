@@ -110,7 +110,7 @@ void Engine::Setup()
 {	
 	
 
-	clDraw = false;
+	clDraw = true;
 	voxels = false;
 
 	RTWidth = Window.Width * 0.75;

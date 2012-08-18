@@ -81,13 +81,14 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 	while (vs.count < maxDepth)
 	{
 		octant = getAndReduceOctantf(&relativeCoords, &relativeSize) ^ rayOctantMask;
+		current = input + curPos;
 
 		curPos += getChildPtr(current);
 		curPos += octant;
 		pushVoxel(&vs, curPos, octant);	
 
 		if (!getValid(current, octant))
-			break;
+			break;		
 
 		++iter;
 	}
@@ -111,24 +112,37 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 	{
 
 		//traversal
-
 		float4 tMax;
 		float4 sideLength;
 		float deltaT;
+		int stepMask;
+
+
 		sideLength = fSize * pow(0.5f, vs.count - 1);
 		tMax = sideLength - fmod(lastPosition, sideLength);
 		tMax *= tDelta;
 		deltaT = min(tMax.x, min(tMax.y, tMax.z));
 		t += deltaT;
-
-		int stepMask = isequal(deltaT, tMax.x) + isequal(deltaT, tMax.y) * YMASK + isequal(deltaT, tMax.z) * ZMASK;
-		bi = popVoxel(&vs);
-
 		lastPosition = initialPosition + r->direction * t;
+
+		stepMask = isequal(deltaT, tMax.x) + isequal(deltaT, tMax.y) * YMASK + isequal(deltaT, tMax.z) * ZMASK;		
 
 		//ascent
 
-		while (((bi.octantMask ^ rayOctantMask) & stepMask) != 0)
+#ifdef STACKSWITCH
+
+		if ((peekVoxel(&vs, vs->count - 1).octantMask ^ rayOctantMask) & stepMask)
+		{
+			bi = popToSwitch(&vs, stepMask);
+		}
+		else
+			bi = popVoxel(&vs);
+
+#else
+
+		bi = popVoxel(&vs);
+
+		while (((bi.octantMask ^ rayOctantMask) & stepMask) != 0)	
 		{
 			bi = popVoxel(&vs);
 			if (bi.blockPos == 0)	//root voxel
@@ -141,6 +155,8 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 			++iter;
 		}
 
+#endif
+
 		curPos = peekVoxel(&vs, vs.count - 1).blockPos;
 		current = input + curPos;
 		curPos += getChildPtr(current);
@@ -148,7 +164,9 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 		curPos += octant;		
 		pushVoxel(&vs, curPos, octant);
 		if (!getValid(current, octant))		
-			continue;		
+			continue;
+
+		current = input + curPos;
 
 		//descent
 
@@ -163,11 +181,8 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 			curPos += octant;
 			pushVoxel(&vs, curPos, octant);
 
-			if (current)
-			{
-				if (!getValid(current, octant))
-					break;	//no need to go to next level
-			}			
+			if (!getValid(current, octant))
+				break;	//no need to go to next level			
 		
 			current = input + curPos;
 			curPos += getChildPtr(current);
