@@ -51,7 +51,7 @@ uint findStartPoint(uint4 startPoint, __global Block* input, VoxelStack* vs, uin
 
 #ifndef HOSTINCLUDE
 
-uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4 size, __global Counters* counters, uint maxLOD)
+uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4 size, __global Counters* counters, uint maxLOD, float* t)
 {
 	int rayOctantMask = 0;
 	int4 octants = (r->direction < FZEROS) * OCTANTMASKS;
@@ -60,6 +60,7 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 	float4 stepSize = sign(r->direction);	
 	float4 fSize = (float4)(size.x, size.y, size.z, size.w);
 	float4 initialPosition = fmod(r->origin * fSize * stepSize + fSize, fSize);
+	float4 rayDirection;
 	VoxelStack vs;
 	initStack(&vs, size.s0);
 
@@ -71,8 +72,8 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 	uint curPos = 0;
 	__global Block* current = input;
 
-	r->direction = max(fabs(r->direction), (float4)(1e-37f, 1e-37f, 1e-37f, 0.0f));
-	float4 tDelta = 1.0f / r->direction;
+	rayDirection = max(fabs(r->direction), (float4)(1e-37f, 1e-37f, 1e-37f, 0.0f));
+	float4 tDelta = 1.0f / rayDirection;
 
 	uint octant;
 
@@ -104,7 +105,7 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 	iter = 0;
 
 	BlockInfo bi;
-	float t = 0.0f;
+	*t = 0.0f;
 
 	float4 lastPosition = initialPosition;
 
@@ -122,8 +123,8 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 		tMax = sideLength - fmod(lastPosition, sideLength);
 		tMax *= tDelta;
 		deltaT = min(tMax.x, min(tMax.y, tMax.z));
-		t += deltaT;
-		lastPosition = initialPosition + r->direction * t;
+		*t += deltaT;
+		lastPosition = initialPosition + rayDirection * (*t);
 
 		stepMask = isequal(deltaT, tMax.x) + isequal(deltaT, tMax.y) * YMASK + isequal(deltaT, tMax.z) * ZMASK;		
 

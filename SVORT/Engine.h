@@ -5,7 +5,6 @@
 #include "VoxelBuilder.h"
 #include "OctreeBuilder.h"
 
-
 class ShaderManager;
 class Camera;
 class CameraController;
@@ -13,6 +12,8 @@ class CameraController;
 class FBOManager;
 class StaticMesh;
 class VoxelOctree;
+
+class Vec3;
 
 class Engine : public GLFWEngine
 {
@@ -83,7 +84,9 @@ private:
 		int sizeZ;
 		int sizeW;
 		float invSize[4];
+		float lightPos[4];
 	} RTParams;
+	Vec3* lightPos;
 	float averageIterations;
 	int mipLevel;
 	int counters[2];

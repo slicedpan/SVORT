@@ -4,6 +4,7 @@
 #include <CL\cl.h>
 
 #define uint cl_uint
+#define uint2 cl_uint2
 #define int3 cl_int3
 #define uint3 cl_uint3
 #define uint4 cl_uint4

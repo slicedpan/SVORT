@@ -5,21 +5,21 @@
 uint PackColour(float4 colour)
 {
 	uint4 iCol;
-	iCol.s0 = (uint)(colour.s0 * 255.0f);
-	iCol.s1 = (uint)(colour.s1 * 255.0f);
-	iCol.s2 = (uint)(colour.s2 * 255.0f);
-	iCol.s3 = (uint)(colour.s3 * 255.0f);
+	iCol.s3 = (uint)(colour.s3 * 255.0f) & 255;
+	iCol.s2 = (uint)(colour.s2 * 255.0f) & 255;
+	iCol.s1 = (uint)(colour.s1 * 255.0f) & 255;
+	iCol.s0 = (uint)(colour.s0 * 255.0f) & 255;
 	
-	return iCol.s3 + (iCol.s2 << 8) + (iCol.s1 << 16) + (iCol.s0 << 24);
+	return iCol.s0 + (iCol.s1 << 8) + (iCol.s2 << 16) + (iCol.s3 << 24);
 }
 
 float4 UnpackColour(uint iColour)
 {
 	float4 colour;
-	colour.s0 = (iColour & 0xff000000) >> 24;
-	colour.s1 = (iColour & 0x00ff0000) >> 16;
-	colour.s2 = (iColour & 0x0000ff00) >> 8;
-	colour.s3 = iColour & 0x000000ff;
+	colour.s3 = (iColour & 0xff000000) >> 24;
+	colour.s2 = (iColour & 0x00ff0000) >> 16;
+	colour.s1 = (iColour & 0x0000ff00) >> 8;
+	colour.s0 = iColour & 0x000000ff;
 	
 	colour.s0 /= 255.0f;
 	colour.s1 /= 255.0f;
@@ -28,10 +28,12 @@ float4 UnpackColour(uint iColour)
 	return colour;
 }
 
-float4 UnpackNormal(uint iColour, __global float4* normalLookup)
+uint2 PackColourAndNormal(float4 colour, float4 normal)
 {
-	uint val = iColour & 0x000000ff;
-	return normalLookup[val];
+	uint2 ret;
+	ret.s0 = PackColour(colour);
+	ret.s1 = PackColour(normal);
+	return ret;
 }
 
 void PackNormal(float4 normal, uint* iColour, __global float4* normalLookup)	//this could be more efficient, but doesn't really need to be

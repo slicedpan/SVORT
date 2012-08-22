@@ -90,6 +90,7 @@ inline BlockInfo popVoxel(VoxelStack* vs)
 	return bi;
 }
 
+#ifdef STACKSWITCH
 inline BlockInfo popToSwitch(VoxelStack* vs, uint octantMask)
 {	
 	uint x, y, z;
@@ -103,6 +104,7 @@ inline BlockInfo popToSwitch(VoxelStack* vs, uint octantMask)
 
 	return peekVoxel(vs, vs->count);
 }
+#endif
 
 inline BlockInfo peekVoxel(VoxelStack* vs, int index)
 {
@@ -325,6 +327,7 @@ typedef struct
 {
 	uint data;
 	uint colour;
+	uint normal;
 } Block;
 
 inline uint validFlagValue(uint position)

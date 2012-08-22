@@ -7,7 +7,7 @@ __constant const sampler_t sampler3D = CLK_FILTER_NEAREST | CLK_NORMALIZED_COORD
 #include "GenRay.h"
 #include "RayIntersect.h"
 
-__kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant Params* params, __global Counters* counters)
+__kernel void VolRT(__write_only image2d_t bmp, __global uint2* input, __constant Params* params, __global Counters* counters)
 {
 
 	int x = get_global_id(0);
@@ -77,12 +77,13 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 
 		/*if (maxCoord.x > params->size.x - 1 || maxCoord.y > params->size.y - 1 || maxCoord.z > params->size.x - 1)
 			colour = (float4)(1.0, 0.0, 0.0, 1.0);*/
+		int pos = 0;
 
 		while(!hit && iter < 512)
 		{
-			int pos = startPoint.z * params->size.x * params->size.y + startPoint.y * params->size.x + startPoint.x;
+			pos = startPoint.z * params->size.x * params->size.y + startPoint.y * params->size.x + startPoint.x;
 			
-			colour = UnpackColour(input[pos]);
+			colour = UnpackColour(input[pos].s0);
 			
 			++iter;
 			
@@ -128,7 +129,12 @@ __kernel void VolRT(__write_only image2d_t bmp, __global int* input, __constant 
 		}
 		atom_add(&counters->total, iter);
 		if (hit)
-		{						
+		{		
+			float4 normal = UnpackColour(input[pos].s1);
+			float4 lightColour = (float4)(1.0f, 0.6f, 0.2f, 1.0f);
+			float4 worldPos = (float4)(startPoint.x * params->invSize.x, startPoint.y * params->invSize.y, startPoint.z * params->invSize.z, 1.0f);
+			float lightAmount = dot(normal.xyz, normalize(params->lightPos.xyz - worldPos.xyz));
+			colour *= lightColour * lightAmount;				
 			write_imagef(bmp, coords, colour);		
 		}
 	}	

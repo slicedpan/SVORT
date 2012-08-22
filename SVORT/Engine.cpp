@@ -109,6 +109,7 @@ void Engine::Init3DTexture()
 void Engine::Setup()
 {	
 	
+	lightPos = new Vec3(0.0f, 2.0f, 0.0f);
 
 	clDraw = true;
 	voxels = false;
@@ -122,9 +123,9 @@ void Engine::Setup()
 	voxelSize.y = 16;
 	voxelSize.z = 16;
 #else
-	voxelSize.x = 16;
-	voxelSize.y = 16;
-	voxelSize.z = 16;
+	voxelSize.x = 64;
+	voxelSize.y = 64;
+	voxelSize.z = 64;
 #endif
 	
 	glGenTextures(1, &tex3D);
@@ -428,6 +429,9 @@ void Engine::UpdateCL()
 	RTParams.invSize[0] = 1.0 / voxelSize.x;
 	RTParams.invSize[1] = 1.0 / voxelSize.y;
 	RTParams.invSize[2] = 1.0 / voxelSize.z;
+
+	memcpy(RTParams.lightPos, lightPos->Ref(), sizeof(float) * 3);
+
 #ifndef INTEL
 	clEnqueueAcquireGLObjects(ocl.queue, 1, &ocl.output, 0, NULL, NULL);
 #endif
@@ -605,6 +609,8 @@ void Engine::Display()
 
 }
 
+float tt = 0.0f;
+
 void Engine::Update(TimeInfo& timeInfo)
 {
 	if (KeyState[GLFW_KEY_LEFT])
@@ -632,6 +638,11 @@ void Engine::Update(TimeInfo& timeInfo)
 	if (KeyState[']'])
 		zCoord += 0.01f;
 	camControl->Update(timeInfo.fTimeSinceLastFrame);
+	tt += timeInfo.fTimeSinceLastFrame * 0.1f;
+	if (tt > 1.0f)
+		tt -= 1.0f;
+	lightPos->Ref()[0] = cosf(tt * 2 * 3.141529f);
+	lightPos->Ref()[2] = sinf(tt * 2 * 3.141529f);
 }
 
 void Engine::KeyPressed(int code)

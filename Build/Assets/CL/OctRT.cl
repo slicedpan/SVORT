@@ -33,11 +33,19 @@ __kernel void OctRT(__write_only image2d_t bmp, __global Block* input, __constan
 		
 		uint curPos = 0;	
 		__global Block* current;	
-		curPos = rayTrace2(input, &r, params->size, counters, 32);
+		float t;
+		curPos = rayTrace2(input, &r, params->size, counters, 32, &t);
 		if (curPos & HITORMISSBIT)
 			return;
 		current = input + (curPos & POSMASK);
-		colour = UnpackColour(current->colour);			
+		colour = UnpackColour(current->colour);	
+
+		float4 normal = UnpackColour(current->normal);
+		float4 lightColour = (float4)(1.0f, 0.6f, 0.2f, 1.0f);
+		float4 worldPos = r.origin + r.direction * t;
+		float lightAmount = dot(normal.xyz, normalize(params->lightPos.xyz - worldPos.xyz));
+		colour *= lightColour * lightAmount;				
+				
 		write_imagef(bmp, coords, colour);	
 	}
 }

@@ -13,6 +13,7 @@ typedef struct
 	float16 invWorldView;
 	uint4 size;
 	float4 invSize;
+	float4 lightPos;
 } Params;
 
 typedef struct

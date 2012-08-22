@@ -118,7 +118,7 @@ void VoxelBuilder::BuildCPU(StaticMesh* mesh, int* dimensions, Shader* meshRende
 	printf("Creating output buffer....\n");
 	ocl.octreeInfo = octreeInfo;
 	if (!ocl.voxelData)
-		ocl.voxelData = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(unsigned int) * dimensions[0] * dimensions[1] * dimensions[2] * 1.15, NULL, &resultCL);
+		ocl.voxelData = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(unsigned int) * dimensions[0] * dimensions[1] * dimensions[2] * 2.30, NULL, &resultCL);
 	CLGLError(resultCL);
 	
 	FrameBufferObject* fbo = new FrameBufferObject(dimensions[0], dimensions[1], 0, 0, GL_RGBA, GL_TEXTURE_2D, "vox");
@@ -244,7 +244,7 @@ void VoxelBuilder::BuildGL(StaticMesh* mesh, int* dimensions, Shader* meshRender
 	printf("Creating output buffer....\n");
 	ocl.octreeInfo = octreeInfo;
 	if (!ocl.voxelData)
-		ocl.voxelData = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(unsigned int) * dimensions[0] * dimensions[1] * dimensions[2] * 1.15, NULL, &resultCL);
+		ocl.voxelData = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(unsigned int) * dimensions[0] * dimensions[1] * dimensions[2] * 2.30, NULL, &resultCL);
 	CLGLError(resultCL);
 	
 	FrameBufferObject* fbo = new FrameBufferObject(dimensions[0], dimensions[1], 0, 0, GL_RGBA, GL_TEXTURE_2D, "vox");

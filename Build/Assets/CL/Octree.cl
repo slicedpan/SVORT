@@ -12,7 +12,7 @@ typedef struct
 	uint pad;
 } OctParams;
 
-__kernel void CreateOctree(__global int* input, __global Block* output, __constant OctreeInfo* octInfo,  __global int* counters, OctParams op)
+__kernel void CreateOctree(__global uint2* input, __global Block* output, __constant OctreeInfo* octInfo,  __global int* counters, OctParams op)
 {
 	uint3 coords = (uint3)(get_global_id(0), get_global_id(1), get_global_id(2));
 	uint3 workSize = (uint3)(get_global_size(0), get_global_size(1), get_global_size(2));	
@@ -22,7 +22,8 @@ __kernel void CreateOctree(__global int* input, __global Block* output, __consta
 	if (op.level == 0)		//outermost level
 	{
 		current = output + gridOffset;
-		current->colour = input[op.inOffset + gridOffset];
+		current->colour = input[op.inOffset + gridOffset].s0;
+		current->normal = input[op.inOffset + gridOffset].s1;
 		current->data = 0;
 		setChildPtr(current, atom_add(counters, 8) - gridOffset);
 	}
@@ -47,7 +48,8 @@ __kernel void CreateOctree(__global int* input, __global Block* output, __consta
 			
 		}		
 		current = output + curPos;
-		current->colour = input[op.inOffset + gridOffset];	//read colour data
+		current->colour = input[op.inOffset + gridOffset].s0;	//read colour data
+		current->normal = input[op.inOffset + gridOffset].s1;
 		current->data = 0;		
 		float4 fCol = UnpackColour(current->colour);
 		

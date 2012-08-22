@@ -29,10 +29,10 @@ void main()
     
 	float attenuation = pow(max((1 - lightDist/lightRadius), 0.0), 1.4) * coneAtten;
 	lightColour = vec3(1.0, 0.7, 0.6) * nDotL;// * attenuation;
-	vec3 diffuse = vec3(0.2, 0.2, 0.2);
+	vec3 diffuse = vec3(1.0, 0.7, 0.6);
 	lightColour = max(lightColour, diffuse);
 
-	out_colour = vec4(lightColour, 0.33333);
+	out_colour = vec4(diffuse, 0.33333);
 	out_normal = vec4(oNormal, 1.0);
 }
 
