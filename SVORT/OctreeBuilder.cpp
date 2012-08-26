@@ -50,7 +50,12 @@ void OctreeBuilder::Build(cl_mem inputBuf, int* dimensions, cl_mem octreeInfo, c
 
 	cl_int resultCL;
 	printf("Creating octree data buffer, size %dKB...\n", (sizeof(CLBlock) * vi.numLeafVoxels) / 1024);
+#ifdef INTEL
+	octDataPtr = malloc(sizeof(CLBlock) * vi.numLeafVoxels);
+	ocl.octData = clCreateBuffer(ocl.context, CL_MEM_USE_HOST_PTR, sizeof(CLBlock) * vi.numLeafVoxels, octDataPtr, &resultCL);
+#else
 	ocl.octData = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(CLBlock) * vi.numLeafVoxels, NULL, &resultCL);
+#endif
 	CLGLError(resultCL);
 	size_t workDim[3];
 
@@ -91,9 +96,8 @@ void OctreeBuilder::Build(cl_mem inputBuf, int* dimensions, cl_mem octreeInfo, c
 	clFinish(ocl.queue);
 	clReleaseMemObject(counters);
 	
-	//*
+	//*	
 	
-	std::vector<HostBlock> blocks;
 	blocks.resize(vi.numLeafVoxels);
 	clEnqueueReadBuffer(ocl.queue, ocl.octData, true, 0, sizeof(CLBlock) * vi.numLeafVoxels, &blocks[0], 0, NULL, NULL);
 

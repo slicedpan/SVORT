@@ -16,17 +16,25 @@ __kernel void VolRT(__write_only image2d_t bmp, __global uint2* input, __constan
 	int h = get_global_size(1) - 1;
 	
 	float xPos = (float)x / (float)w;
-	float yPos = (float)y / (float)h;	
+	float yPos = (float)y / (float)h;
+	
+	int2 coords = (int2)(x, y);		
+
+	if (x == 384 && y == 384)
+	{
+		write_imagef(bmp, coords, (float4)(1.0, 0.0, 0.0, 1.0));
+		return;
+	}
 
 	float2 screenPos = (float2)((float)x / (float)w, (float)y / (float)h);
 
 	Ray r = createRay(&params->invWorldView, screenPos);	
 	
-	int2 coords = (int2)(x, y);	
+	
 
-	float4 intersectionPoint = (float4)(0.0f, 0.0f, 0.0f, 1.0f);	
+	float4 intersectionPoint = params->camPos;	
 
-	if (intersectCube(r, 0.001f, 1000.0f, &intersectionPoint))
+	if (intersectionPoint.s3 > 0.0f || intersectCube(r, 0.001f, 1000.0f, &intersectionPoint))
 	{				
 
 		atom_add(&counters->numSamples, 1);	
@@ -133,7 +141,7 @@ __kernel void VolRT(__write_only image2d_t bmp, __global uint2* input, __constan
 			float4 normal = UnpackColour(input[pos].s1);
 			float4 lightColour = (float4)(1.0f, 0.6f, 0.2f, 1.0f);
 			float4 worldPos = (float4)(startPoint.x * params->invSize.x, startPoint.y * params->invSize.y, startPoint.z * params->invSize.z, 1.0f);
-			float lightAmount = dot(normal.xyz, normalize(params->lightPos.xyz - worldPos.xyz));
+			float lightAmount = max(dot(normal.xyz, normalize(params->lightPos.xyz - worldPos.xyz)), 0.3f);
 			colour *= lightColour * lightAmount;				
 			write_imagef(bmp, coords, colour);		
 		}

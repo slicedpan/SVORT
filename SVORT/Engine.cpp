@@ -123,9 +123,9 @@ void Engine::Setup()
 	voxelSize.y = 16;
 	voxelSize.z = 16;
 #else
-	voxelSize.x = 64;
-	voxelSize.y = 64;
-	voxelSize.z = 64;
+	voxelSize.x = 256;
+	voxelSize.y = 256;
+	voxelSize.z = 256;
 #endif
 	
 	glGenTextures(1, &tex3D);
@@ -423,12 +423,26 @@ void Engine::UpdateCL()
 	Mat4 world(16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f, 0.0f, 0.0f, 0.0f, 0.0f, 16.0f);
 	Mat4 invWorldView = inv(world) * cam->GetTransform();
 
+	Vec4 camObjectPos;
+	memcpy(camObjectPos.Ref(), cam->Position.Ref(), sizeof(float) * 3);
+	camObjectPos[3] = 1.0f;
+	camObjectPos = camObjectPos * inv(world);
+
+	camObjectPos[3] = 0.0f;
+	memcpy(RTParams.camPos, camObjectPos.Ref(), sizeof(float) * 4);
+
+	if (camObjectPos[0] > 0.0f && camObjectPos[0] < 1.0f && camObjectPos[1] > 0.0f && camObjectPos[1] < 1.0f && camObjectPos[2] > 0.0f && camObjectPos[2] < 1.0f)
+	{
+		RTParams.camPos[3] = 1.0f;
+	}
+
 	memcpy(&RTParams.sizeX, &voxelSize.x, sizeof(int) * 3);
 	RTParams.sizeW = voxelBuilder.GetMaxNumMips() - 1;
 	memcpy(RTParams.invWorldView, invWorldView.Ref(), sizeof(float) * 16);
 	RTParams.invSize[0] = 1.0 / voxelSize.x;
 	RTParams.invSize[1] = 1.0 / voxelSize.y;
 	RTParams.invSize[2] = 1.0 / voxelSize.z;
+	
 
 	memcpy(RTParams.lightPos, lightPos->Ref(), sizeof(float) * 3);
 
@@ -643,6 +657,7 @@ void Engine::Update(TimeInfo& timeInfo)
 		tt -= 1.0f;
 	lightPos->Ref()[0] = cosf(tt * 2 * 3.141529f);
 	lightPos->Ref()[2] = sinf(tt * 2 * 3.141529f);
+
 }
 
 void Engine::KeyPressed(int code)

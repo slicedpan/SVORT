@@ -74,15 +74,20 @@ void VoxelBuilder::GenerateMipmaps()
 	clSetKernelArg(ocl.mipKernel, 3, sizeof(cl_mem), &ocl.octreeInfo);
 
 	for (int i = 0; i < 3; ++i)
-		outSizeOffset.s[i] /= 2;
+		outSizeOffset.s[i] /= 2;	
 
 	for (int i = 0; i < maxMips; ++i)
 	{
 		clFinish(ocl.queue);
 		clSetKernelArg(ocl.mipKernel, 1, sizeof(cl_int4), &inSizeOffset);
-		clSetKernelArg(ocl.mipKernel, 2, sizeof(cl_int4), &outSizeOffset);		
+		clSetKernelArg(ocl.mipKernel, 2, sizeof(cl_int4), &outSizeOffset);	
 
+		clEnqueueReadBuffer(ocl.queue, ocl.octreeInfo, true, 0, sizeof(octInfo), &octInfo, 0, NULL, NULL);
+		
 		size_t workDim[3] = { outSizeOffset.s[0], outSizeOffset.s[1], outSizeOffset.s[2] };
+
+		octInfo.pad = workDim[0] * workDim[0] * workDim[0] * 8;
+		clEnqueueWriteBuffer(ocl.queue, ocl.octreeInfo, true, 0, sizeof(octInfo), &octInfo, 0, NULL, NULL);
 
 		clEnqueueNDRangeKernel(ocl.queue, ocl.mipKernel, 3, NULL, workDim, NULL, 0, NULL, NULL);
 
@@ -166,7 +171,7 @@ void VoxelBuilder::BuildCPU(StaticMesh* mesh, int* dimensions, Shader* meshRende
 		float camDist = mesh->SubMeshes[0].Max[2] - mesh->SubMeshes[0].Min[2];
 		camDist /= 2.0f;
 
-		Mat4 ortho = Orthographic(mesh->SubMeshes[0].Min[0], mesh->SubMeshes[0].Max[0], mesh->SubMeshes[0].Min[1], mesh->SubMeshes[0].Max[1], zDist, zDist + increment);
+		Mat4 ortho = Orthographic(mesh->SubMeshes[0].Min[0], mesh->SubMeshes[0].Max[0], mesh->SubMeshes[0].Min[1], mesh->SubMeshes[0].Max[1], zDist, zDist + (increment * 5.0f));
 
 		meshRenderer->Use();
 		meshRenderer->Uniforms["World"].SetValue(Mat4(vl_one));
@@ -285,7 +290,7 @@ void VoxelBuilder::BuildGL(StaticMesh* mesh, int* dimensions, Shader* meshRender
 		float camDist = mesh->SubMeshes[0].Max[2] - mesh->SubMeshes[0].Min[2];
 		camDist /= 2.0f;
 
-		Mat4 ortho = Orthographic(mesh->SubMeshes[0].Min[0], mesh->SubMeshes[0].Max[0], mesh->SubMeshes[0].Min[1], mesh->SubMeshes[0].Max[1], zDist, zDist + increment);
+		Mat4 ortho = Orthographic(mesh->SubMeshes[0].Min[0], mesh->SubMeshes[0].Max[0], mesh->SubMeshes[0].Min[1], mesh->SubMeshes[0].Max[1], zDist, zDist + (increment * 5.0f));
 
 		meshRenderer->Use();
 		meshRenderer->Uniforms["World"].SetValue(Mat4(vl_one));

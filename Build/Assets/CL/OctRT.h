@@ -94,15 +94,13 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 		++iter;
 	}
 
-	if (vs.count == maxDepth)
+	if (vs.count == maxDepth && getValid(current, octant))
 	{
 #ifdef PERFCOUNTERENABLED
 		atom_add(&counters->total, iter);
 #endif
 		return curPos;
 	}
-
-	iter = 0;
 
 	BlockInfo bi;
 	*t = 0.0f;
@@ -118,7 +116,6 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 		float deltaT;
 		int stepMask;
 
-
 		sideLength = fSize * pow(0.5f, vs.count - 1);
 		tMax = sideLength - fmod(lastPosition, sideLength);
 		tMax *= tDelta;
@@ -132,7 +129,7 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 
 #ifdef STACKSWITCH
 
-		if ((peekVoxel(&vs, vs->count - 1).octantMask ^ rayOctantMask) & stepMask)
+		if ((peekVoxel(&vs, vs.count - 1).octantMask ^ rayOctantMask) & stepMask)
 		{
 			bi = popToSwitch(&vs, stepMask);
 		}
@@ -158,12 +155,14 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 
 #endif
 
-		curPos = peekVoxel(&vs, vs.count - 1).blockPos;
-		current = input + curPos;
-		curPos += getChildPtr(current);
+		if (curPos > 2480)
+			return HITORMISSBIT;
+
+		current = input + peekVoxel(&vs, vs.count - 1).blockPos;
 		octant = bi.octantMask ^ stepMask;
-		curPos += octant;		
+		curPos = bi.blockPos - bi.octantMask + octant;		
 		pushVoxel(&vs, curPos, octant);
+
 		if (!getValid(current, octant))		
 			continue;
 
@@ -177,6 +176,8 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 
 		while (depth < maxDepth)
 		{
+
+			curPos += getChildPtr(current);
 			octant = getAndReduceOctantf(&relativeCoords, &relativeSize) ^ rayOctantMask;	
 
 			curPos += octant;
@@ -186,7 +187,6 @@ uint rayTrace2(/*float4 intersectionPoint,*/__global Block* input, Ray* r, uint4
 				break;	//no need to go to next level			
 		
 			current = input + curPos;
-			curPos += getChildPtr(current);
 			++iter;
 			++depth;
 		}

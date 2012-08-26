@@ -59,9 +59,9 @@ inline void initStack(VoxelStack* vs, uint maxSideLength)
 	vs->count = 0;
 
 #ifdef STACKSWITCH
-	vs->xSwitch = 0;
-	vs->ySwitch = 0;
-	vs->zSwitch = 0;
+	vs->xSwitch = 1;
+	vs->ySwitch = 1;
+	vs->zSwitch = 1;
 #endif
 
 }
@@ -71,7 +71,7 @@ inline void pushVoxel(VoxelStack* vs, uint blockPos, uint octantMask)
 	vs->blockPos[vs->count] = blockPos;	
 	vs->octant[vs->count] = octantMask;
 #ifdef STACKSWITCH
-	uint switchMask = octantMask ^ vs->octant[vs->count - 1]			
+	uint switchMask = octantMask ^ vs->octant[vs->count - 1];			
 	vs->xSwitch |= (switchMask & XMASK) << vs->count;
 #endif
 	++vs->count;
@@ -90,6 +90,14 @@ inline BlockInfo popVoxel(VoxelStack* vs)
 	return bi;
 }
 
+inline BlockInfo peekVoxel(VoxelStack* vs, int index)
+{
+	BlockInfo bi;
+	bi.blockPos = vs->blockPos[index];
+	bi.octantMask = vs->octant[index];
+	return bi;
+}
+
 #ifdef STACKSWITCH
 inline BlockInfo popToSwitch(VoxelStack* vs, uint octantMask)
 {	
@@ -102,17 +110,15 @@ inline BlockInfo popToSwitch(VoxelStack* vs, uint octantMask)
 	vs->count = max(x, max(y, z));
 	uint clearMask = (2 << (vs->count)) - 1;
 
+	vs->xSwitch &= clearMask;
+	vs->zSwitch &= clearMask;
+	vs->ySwitch &= clearMask;
+
 	return peekVoxel(vs, vs->count);
 }
 #endif
 
-inline BlockInfo peekVoxel(VoxelStack* vs, int index)
-{
-	BlockInfo bi;
-	bi.blockPos = vs->blockPos[index];
-	bi.octantMask = vs->octant[index];
-	return bi;
-}
+
 
 inline bool isEmpty(VoxelStack* vs)
 {

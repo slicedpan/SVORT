@@ -14,6 +14,7 @@ typedef struct
 	uint4 size;
 	float4 invSize;
 	float4 lightPos;
+	float4 camPos;
 } Params;
 
 typedef struct

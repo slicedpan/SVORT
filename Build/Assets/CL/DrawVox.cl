@@ -16,7 +16,7 @@ __kernel void DrawVoxels(__write_only image2d_t output, __global uint2* input, u
 	
 	//colour.x = 1.0;
 	
-	float4 colour = UnpackColour(input[pos].s1);
+	float4 colour = UnpackColour(input[pos].s0);
 	
 	if (colour.w == 0.0f)
 		colour.xyz = (float3)(0.0, 0.0, 0.0);

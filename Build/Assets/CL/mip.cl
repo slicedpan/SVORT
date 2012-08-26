@@ -13,6 +13,7 @@ __kernel void Mip(__global uint2* buffer, uint4 inSizeOffset, uint4 outSizeOffse
 	
 	float4 colours[8];	
 	float4 normals[8];
+
 	colours[0] = UnpackColour(buffer[inPos].s0);	
 	colours[1] = UnpackColour(buffer[inPos + offsets.x].s0);
 	colours[2] = UnpackColour(buffer[inPos + offsets.x + offsets.y].s0);
@@ -56,7 +57,8 @@ __kernel void Mip(__global uint2* buffer, uint4 inSizeOffset, uint4 outSizeOffse
 	{
 		totalColour = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
 		totalNormal = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
-		atom_sub(&voxInfo->numLeafVoxels, 7);
+		atom_sub(&voxInfo->numLeafVoxels, 8);
+		atom_sub(&voxInfo->pad, 8);
 	}	
 	
 	buffer[outPos].s0 = PackColour(totalColour);

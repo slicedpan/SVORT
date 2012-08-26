@@ -85,6 +85,7 @@ private:
 		int sizeW;
 		float invSize[4];
 		float lightPos[4];
+		float camPos[4];
 	} RTParams;
 	Vec3* lightPos;
 	float averageIterations;

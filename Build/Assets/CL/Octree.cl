@@ -40,8 +40,8 @@ __kernel void CreateOctree(__global uint2* input, __global Block* output, __cons
 			//figure out which octant this voxel is in
 			octant = getAndReduceOctant(&relativeCoords, &relativeSize);
 
-			if (!getValid(parent, octant))	//we can finish here, since there are no valid subvoxels
-				return;	
+			if (!getValid(parent, octant))											
+				return;	 //we can finish here, since there are no valid subvoxels			
 				
 			curPos += getChildPtr(parent);
 			curPos += octant;									
@@ -55,7 +55,7 @@ __kernel void CreateOctree(__global uint2* input, __global Block* output, __cons
 		
 		if (fCol.w != 0.0f)
 		{			
-			if (op.level + 1 < octInfo->numLevels)
+			if (op.level + 2 < octInfo->numLevels)
 			{
 				setChildPtr(current, atom_add(counters, 8) - curPos);	//only set child pointer if this is a non-empty non-leaf voxel
 			}

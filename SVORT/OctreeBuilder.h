@@ -1,7 +1,8 @@
 #pragma once
 
 #include <CL\cl.h>
-
+#include <vector>
+#include "OpenCLStructs.h"
 
 class OctreeBuilder
 {
@@ -23,5 +24,7 @@ private:
 		cl_command_queue queue;
 		cl_mem octData;
 	} ocl;
+	void* octDataPtr;
+	std::vector<HostBlock> blocks;
 };
 
