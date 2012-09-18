@@ -4,13 +4,14 @@ __constant const sampler_t sampler3D = CLK_FILTER_NEAREST | CLK_NORMALIZED_COORD
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 #define PERFCOUNTERENABLED
 #include "colour.h"
-#define STACKSWITCH
+
 #include "OctRT.h"
 #include "GenRay.h"
 #include "RayIntersect.h"
 
 
-__kernel void OctRT(__write_only image2d_t bmp, __global Block* input, __constant Params* params, __global Counters* counters)
+__kernel __attribute__((vec_type_hint(float4)))
+void OctRT(__write_only image2d_t bmp, __global Block* input, __constant Params* params, __global Counters* counters)
 {
 	int x = get_global_id(0);
 	int y = get_global_id(1);
@@ -35,17 +36,15 @@ __kernel void OctRT(__write_only image2d_t bmp, __global Block* input, __constan
 		uint curPos = 0;	
 		__global Block* current;	
 		float t;
-		curPos = rayTrace2(input, &r, params->size, counters, 32, &t);
+		curPos = rayTrace(input, &r, params->size, counters, 32, &t);
 		if (curPos & HITORMISSBIT)
-			return;
-		if (curPos > 2480)
 			return;
 		current = input + (curPos & POSMASK);
 		colour = UnpackColour(current->colour);	
 
 		float4 normal = UnpackColour(current->normal);
 		float4 lightColour = (float4)(1.0f, 0.6f, 0.2f, 1.0f);
-		float4 worldPos = r.origin + r.direction * t;
+		float4 worldPos = r.origin + r.direction * t * params->invSize.s0;
 		float lightAmount = max(dot(normal.xyz, normalize(params->lightPos.xyz - worldPos.xyz)), 0.3f);
 		colour *= lightColour * lightAmount;				
 				

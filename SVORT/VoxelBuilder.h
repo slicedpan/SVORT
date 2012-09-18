@@ -12,8 +12,7 @@ public:
 	VoxelBuilder(void);
 	~VoxelBuilder(void);
 	void Init(cl_context context, cl_device_id device);
-	void BuildGL(StaticMesh* mesh, int* dimensions, Shader* meshRenderer, cl_mem octreeInfo, cl_mem normalLookup);
-	void BuildCPU(StaticMesh* mesh, int* dimensions, Shader* meshRenderer, cl_mem octreeInfo, cl_mem normalLookup);
+	void Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer, cl_mem octreeInfo, cl_mem normalLookup, int octant = -1);	
 	void ReloadProgram();
 	cl_mem GetVoxelData();
 	void SetDebugDrawShader(Shader* shader);

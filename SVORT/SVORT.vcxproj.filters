@@ -7,6 +7,7 @@
     <ClCompile Include="OctreeBuilder.cpp" />
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="VoxelBuilder.cpp" />
+    <ClCompile Include="OctreeJoiner.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CubeDrawer.h" />
@@ -44,6 +45,7 @@
     <ClInclude Include="..\Build\Assets\CL\RayIntersect.h">
       <Filter>CL</Filter>
     </ClInclude>
+    <ClInclude Include="OctreeJoiner.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Build\Assets\CL\DrawOct.cl">

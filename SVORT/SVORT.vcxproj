@@ -102,6 +102,7 @@
     </ClCompile>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="OctreeBuilder.cpp" />
+    <ClCompile Include="OctreeJoiner.cpp" />
     <ClCompile Include="Utils.cpp" />
     <ClCompile Include="VoxelBuilder.cpp" />
   </ItemGroup>
@@ -119,6 +120,7 @@
     <ClInclude Include="CubeDrawer.h" />
     <ClInclude Include="Engine.h" />
     <ClInclude Include="OctreeBuilder.h" />
+    <ClInclude Include="OctreeJoiner.h" />
     <ClInclude Include="OpenCLStructs.h" />
     <ClInclude Include="Utils.h" />
     <ClInclude Include="VolumeData.h" />

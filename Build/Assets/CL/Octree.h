@@ -52,11 +52,14 @@ typedef struct
 	uint junk2;
 	uint octant[15];
 
+	uint4* octPtr;
+
 }	VoxelStack;
 
 inline void initStack(VoxelStack* vs, uint maxSideLength)
 {
 	vs->count = 0;
+	vs->octPtr = (uint4*)&vs->junk2;
 
 #ifdef STACKSWITCH
 	vs->xSwitch = 1;

@@ -9,6 +9,7 @@
 #include "ShaderManager.h"
 #include "WindowSettings.h"
 #include "QuadDrawer.h"
+#include "OctreeJoiner.h"
 #include "Camera\Camera.h"
 #include "Camera\CameraController.h"
 #include "CubeDrawer.h"
@@ -82,28 +83,76 @@ void Engine::Init3DTexture()
 {
 	StaticMesh* mesh = mesh1;
 	if (!drawMesh1)
-		mesh = mesh2;  	
-#ifdef INTEL
-	voxelBuilder.BuildCPU(mesh, &voxelSize.x, shaders["Basic"], ocl.voxInfo, ocl.normalLookup);
-#else
-	voxelBuilder.BuildGL(mesh, &voxelSize.x, shaders["Basic"], ocl.voxInfo, ocl.normalLookup);
-#endif
-	ocl.volumeData = voxelBuilder.GetVoxelData();	
+		mesh = mesh2; 
 
-	OctreeInfo oi;
-	oi.numLevels = voxelBuilder.GetMaxNumMips();
-	oi.levelSize[0] = voxelSize.x;
-	oi.levelOffset[0] = 0;
-	for (int i = 1; i < oi.numLevels; ++i)
+	if (voxelSize.x > 7)
 	{
-		oi.levelSize[i] = oi.levelSize[i - 1] / 2;
-		oi.levelOffset[i] = oi.levelOffset[i - 1] + (oi.levelSize[i - 1] * oi.levelSize[i - 1] * oi.levelSize[i - 1]);
+		HostBlock* octreeNodes[8];
+		int octreeSize[8];
+		size_t totalSize = 0;
+		for (int i = 0; i < 8; ++i)
+		{
+			voxelBuilder.Build(mesh, &voxelSize.x, shaders["Basic"], ocl.voxInfo, ocl.normalLookup, i);
+			ocl.volumeData = voxelBuilder.GetVoxelData();
+
+			OctreeInfo oi;
+			oi.numLevels = voxelBuilder.GetMaxNumMips();
+			oi.levelSize[0] = voxelSize.x / 2;
+			oi.levelOffset[0] = 0;
+
+			for (int j = 1; j < oi.numLevels; ++j)
+			{
+				oi.levelSize[j] = oi.levelSize[j - 1] / 2;
+				oi.levelOffset[j] = oi.levelOffset[j - 1] + (oi.levelSize[j - 1] * oi.levelSize[j - 1] * oi.levelSize[j - 1]);
+			}
+
+			clEnqueueWriteBuffer(ocl.queue, ocl.octInfo, true, 0, sizeof(OctreeInfo), &oi, 0, NULL, NULL);
+			VoxelInfo vi;
+			clEnqueueReadBuffer(ocl.queue, ocl.voxInfo, true, 0, sizeof(VoxelInfo), &vi, 0, NULL, NULL);
+
+			totalSize += sizeof(CLBlock) * vi.numLeafVoxels;
+			octreeSize[i] = vi.numLeafVoxels;
+			octreeNodes[i] = (HostBlock*)malloc(sizeof(CLBlock) * vi.numLeafVoxels);
+			octreeBuilder.Build(ocl.volumeData, &voxelSize.x, ocl.octInfo, ocl.voxInfo);
+
+			clEnqueueReadBuffer(ocl.queue, octreeBuilder.GetOctreeData(), true, 0, sizeof(CLBlock) * vi.numLeafVoxels, octreeNodes[i], 0, NULL, NULL);
+				
+		}
+
+		OctreeJoiner octreeJoiner(ocl.context, ocl.devices[0]);
+		ocl.octreeData = octreeJoiner.JoinOctrees(octreeNodes, octreeSize);
+
+		for (int i = 0; i < 8; ++i)
+		{
+			free(octreeNodes[i]);
+		}
+
 	}
-	clEnqueueWriteBuffer(ocl.queue, ocl.octInfo, false, 0, sizeof(OctreeInfo), &oi, 0, NULL, NULL);
-	clFinish(ocl.queue);	
+	else
+	{
+
+		voxelBuilder.Build(mesh, &voxelSize.x, shaders["Basic"], ocl.voxInfo, ocl.normalLookup);
+		ocl.volumeData = voxelBuilder.GetVoxelData();	
+		
+		OctreeInfo oi;
+		oi.numLevels = voxelBuilder.GetMaxNumMips();
+		oi.levelSize[0] = voxelSize.x;
+		oi.levelOffset[0] = 0;
+		for (int i = 1; i < oi.numLevels; ++i)
+		{
+			oi.levelSize[i] = oi.levelSize[i - 1] / 2;
+			oi.levelOffset[i] = oi.levelOffset[i - 1] + (oi.levelSize[i - 1] * oi.levelSize[i - 1] * oi.levelSize[i - 1]);
+		}
+		clEnqueueWriteBuffer(ocl.queue, ocl.octInfo, false, 0, sizeof(OctreeInfo), &oi, 0, NULL, NULL);
+		clFinish(ocl.queue);		
+		
+		octreeBuilder.Build(ocl.volumeData, &voxelSize.x, ocl.octInfo, ocl.voxInfo);
+		ocl.octreeData = octreeBuilder.GetOctreeData();
+	}
 
 	if (ocl.voxKernel)
 		clSetKernelArg(ocl.voxKernel, 1, sizeof(cl_mem), &ocl.volumeData);
+
 }
 
 void Engine::Setup()
@@ -112,10 +161,15 @@ void Engine::Setup()
 	lightPos = new Vec3(0.0f, 2.0f, 0.0f);
 
 	clDraw = true;
-	voxels = false;
+	voxels = true;
 
 	RTWidth = Window.Width * 0.75;
 	RTHeight = Window.Height;
+
+#ifdef INTEL
+	RTWidth /= 8;
+	RTHeight /= 8;	
+#endif
 
 	mipLevel = 3;
 #ifdef INTEL
@@ -123,9 +177,9 @@ void Engine::Setup()
 	voxelSize.y = 16;
 	voxelSize.z = 16;
 #else
-	voxelSize.x = 256;
-	voxelSize.y = 256;
-	voxelSize.z = 256;
+	voxelSize.x = 1024;
+	voxelSize.y = 1024;
+	voxelSize.z = 1024;
 #endif
 	
 	glGenTextures(1, &tex3D);
@@ -146,6 +200,13 @@ void Engine::Setup()
 	camControl->SetCamera(cam);
 	camControl->MaxSpeed = 0.4f;
 	cam->SetAspectRatio(1.0f);
+
+	cam->Pitch = 0.12000000f;
+	cam->Yaw = -3.9899971f;
+
+	cam->Position[0] = 20.667982f;
+	cam->Position[1] = 9.9999990f;
+	cam->Position[2] = -0.71417093f;
 
 	shaders.Add(new Shader("Assets/Shaders/vol.vert","Assets/Shaders/vol.frag", "DVR"));
 	shaders.Add(new Shader("Assets/Shaders/copy.vert", "Assets/Shaders/copy.frag", "Copy"));
@@ -176,9 +237,8 @@ void Engine::Setup()
 	
 	zCoord = 1.35f; 	
 	SetupOpenCL();
-	Init3DTexture();
-	octreeBuilder.Build(ocl.volumeData, &voxelSize.x, ocl.octInfo, ocl.voxInfo);
-	ocl.octreeData = octreeBuilder.GetOctreeData();
+	Init3DTexture();	
+	
 	if (ocl.octRTKernel)
 		clSetKernelArg(ocl.octRTKernel, 1, sizeof(cl_mem), &ocl.octreeData);
 	CreateRTKernel();

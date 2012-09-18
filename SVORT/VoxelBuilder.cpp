@@ -115,147 +115,46 @@ int VoxelBuilder::GetMaxNumMips()
 	return maxMips;
 }
 
-void VoxelBuilder::BuildCPU(StaticMesh* mesh, int* dimensions, Shader* meshRenderer, cl_mem octreeInfo, cl_mem normalLookup)
+void VoxelBuilder::Build(StaticMesh* mesh, int* dimensions, Shader* meshRenderer, cl_mem octreeInfo, cl_mem normalLookup, int octant)
 {
 	memcpy(dims, dimensions, sizeof(int) * 3);
+	if (octant >= 0)
+	{
+		dims[0] /= 2;
+		dims[1] /= 2;
+		dims[2] /= 2;
+	}
 	cl_int resultCL = 0;
 	printf("\n\nBuilding voxel data\n");
 	printf("Creating output buffer....\n");
 	ocl.octreeInfo = octreeInfo;
-	if (!ocl.voxelData)
-		ocl.voxelData = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(unsigned int) * dimensions[0] * dimensions[1] * dimensions[2] * 2.30, NULL, &resultCL);
+	if (ocl.voxelData)
+		clReleaseMemObject(ocl.voxelData);
+	ocl.voxelData = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(unsigned int) * dims[0] * dims[1] * dims[2] * 2.30, NULL, &resultCL);
 	CLGLError(resultCL);
 	
-	FrameBufferObject* fbo = new FrameBufferObject(dimensions[0], dimensions[1], 0, 0, GL_RGBA, GL_TEXTURE_2D, "vox");
+	FrameBufferObject* fbo = new FrameBufferObject(dims[0], dims[1], 0, 0, GL_RGBA, GL_TEXTURE_2D, "vox");
 	fbo->AttachTexture("colour");
 	fbo->AttachTexture("normal");
 	fbo->SetDrawBuffers(true);
 
+#ifdef INTEL
+
 	printf("Creating colour input buffer....\n");	
-	unsigned int* colourData = (unsigned int*)malloc(sizeof(unsigned int) * dimensions[0] * dimensions[1]);
+	unsigned int* colourData = (unsigned int*)malloc(sizeof(unsigned int) * dims[0] * dims[1]);
 	cl_image_format colourFormat;
 	colourFormat.image_channel_order = CL_RGBA;
 	colourFormat.image_channel_data_type = CL_UNORM_INT8;
-	ocl.inputData[0] = clCreateImage2D(ocl.context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY, &colourFormat, dimensions[0], dimensions[1], 0, colourData, &resultCL);
+	ocl.inputData[0] = clCreateImage2D(ocl.context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY, &colourFormat, dims[0], dims[1], 0, colourData, &resultCL);
 	CLGLError(resultCL);
 
 	printf("Creating normal input buffer....\n");
-	unsigned int* normalData = (unsigned int*)malloc(sizeof(unsigned int) * dimensions[0] * dimensions[1]);	
-	ocl.inputData[1] = clCreateImage2D(ocl.context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY, &colourFormat, dimensions[0], dimensions[1], 0, normalData, &resultCL);
+	unsigned int* normalData = (unsigned int*)malloc(sizeof(unsigned int) * dims[0] * dims[1]);	
+	ocl.inputData[1] = clCreateImage2D(ocl.context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY, &colourFormat, dims[0], dims[1], 0, normalData, &resultCL);
 	CLGLError(resultCL);
 
-	clSetKernelArg(ocl.fillKernel, 0, sizeof(cl_mem), &(ocl.inputData[0]));
-	clSetKernelArg(ocl.fillKernel, 1, sizeof(cl_mem), &(ocl.inputData[1]));
-	clSetKernelArg(ocl.fillKernel, 2, sizeof(cl_mem), &ocl.voxelData);
-	clSetKernelArg(ocl.fillKernel, 4, sizeof(cl_mem), &normalLookup);
+#else
 
-	cl_int4 size;
-	memcpy(size.s, dimensions, sizeof(int) * 3);
-
-	float zDist = mesh->SubMeshes[0].Max[2] - mesh->SubMeshes[0].Min[2];
-	float increment = zDist / dimensions[2];
-	zDist = - increment;
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-
-	for (int i = 0; i < dimensions[2]; ++i)
-	{
-		fbo->Bind();
-
-		size.s[3] = i;
-
-		glClear(GL_COLOR_BUFFER_BIT);
-
-		float camHeight = mesh->SubMeshes[0].Max[1] - mesh->SubMeshes[0].Min[1];
-		camHeight /= 2.0f;
-
-		float camDist = mesh->SubMeshes[0].Max[2] - mesh->SubMeshes[0].Min[2];
-		camDist /= 2.0f;
-
-		Mat4 ortho = Orthographic(mesh->SubMeshes[0].Min[0], mesh->SubMeshes[0].Max[0], mesh->SubMeshes[0].Min[1], mesh->SubMeshes[0].Max[1], zDist, zDist + (increment * 5.0f));
-
-		meshRenderer->Use();
-		meshRenderer->Uniforms["World"].SetValue(Mat4(vl_one));
-		meshRenderer->Uniforms["View"].SetValue(HTrans4(Vec3(0, 0, -camDist)));
-		meshRenderer->Uniforms["Projection"].SetValue(ortho);
-		meshRenderer->Uniforms["lightCone"].SetValue(Vec3(0, -1, 0));
-		meshRenderer->Uniforms["lightPos"].SetValue(Vec3(0, 10, 0));
-		meshRenderer->Uniforms["lightRadius"].SetValue(15.0f);
-
-		glEnable(GL_DEPTH_TEST);
-		mesh->SubMeshes[0].Draw();
-
-		fbo->Unbind();	
-
-		glDisable(GL_DEPTH_TEST);
-
-		if (debugDraw && debugDrawShader)
-		{
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, fbo->GetTextureID("colour"));
-			debugDrawShader->Use();
-			debugDrawShader->Uniforms["baseTex"].SetValue(0);
-			QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(1.0, 1.0), Vec2(1.0, 1.0));
-		}
-		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, colourData);
-		glBindTexture(GL_TEXTURE_2D, fbo->GetTextureID("normal"));
-		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, normalData);
-		glFinish();
-		glfwSwapBuffers();
-
-		clSetKernelArg(ocl.fillKernel, 3, sizeof(cl_int4), &size);	
-
-		size_t workSize[2];
-		workSize[0] = dimensions[0];
-		workSize[1] = dimensions[1];
-
-		clEnqueueNDRangeKernel(ocl.queue, ocl.fillKernel, 2, NULL, workSize, NULL, 0, NULL, NULL);		
-
-		clFinish(ocl.queue);
-
-		char buf[64];
-		sprintf(buf, "Creating Volume: %d / %d", i + 1, dimensions[2]);
-		glfwSetWindowTitle(buf);
-
-		zDist += increment;
-
-	}
-
-	clReleaseMemObject(ocl.inputData[0]);
-	clReleaseMemObject(ocl.inputData[1]);
-	delete fbo;
-	
-	maxMips = 1;
-	int counter = dimensions[0];
-	octInfo.numLeafVoxels = 0;
-	while(counter >= 1)
-	{
-		octInfo.numLeafVoxels += counter * counter * counter;
-		counter /= 2;
-		++maxMips;
-	}	
-	octInfo.numVoxels = octInfo.numLeafVoxels;
-	octInfo.numLevels = maxMips;
-	clEnqueueWriteBuffer(ocl.queue, ocl.octreeInfo, false, 0, sizeof(octInfo), &octInfo, 0, NULL, NULL);
-	clFinish(ocl.queue);	
-
-	GenerateMipmaps();	//this is not glGenerateMipmaps()
-}
-
-void VoxelBuilder::BuildGL(StaticMesh* mesh, int* dimensions, Shader* meshRenderer, cl_mem octreeInfo, cl_mem normalLookup)
-{
-	memcpy(dims, dimensions, sizeof(int) * 3);
-	cl_int resultCL = 0;
-	printf("\n\nBuilding voxel data\n");
-	printf("Creating output buffer....\n");
-	ocl.octreeInfo = octreeInfo;
-	if (!ocl.voxelData)
-		ocl.voxelData = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(unsigned int) * dimensions[0] * dimensions[1] * dimensions[2] * 2.30, NULL, &resultCL);
-	CLGLError(resultCL);
-	
-	FrameBufferObject* fbo = new FrameBufferObject(dimensions[0], dimensions[1], 0, 0, GL_RGBA, GL_TEXTURE_2D, "vox");
-	fbo->AttachTexture("colour");
-	fbo->AttachTexture("normal");
-	fbo->SetDrawBuffers(true);
 	printf("Creating colour input buffer....\n");
 	ocl.inputData[0] = clCreateFromGLTexture2D(ocl.context, CL_MEM_READ_ONLY, GL_TEXTURE_2D, 0, fbo->GetTextureID("colour"), &resultCL);
 	CLGLError(resultCL);
@@ -263,20 +162,69 @@ void VoxelBuilder::BuildGL(StaticMesh* mesh, int* dimensions, Shader* meshRender
 	ocl.inputData[1] = clCreateFromGLTexture2D(ocl.context, CL_MEM_READ_ONLY, GL_TEXTURE_2D, 0, fbo->GetTextureID("normal"), &resultCL);
 	CLGLError(resultCL);
 
+#endif
+
 	clSetKernelArg(ocl.fillKernel, 0, sizeof(cl_mem), &(ocl.inputData[0]));
 	clSetKernelArg(ocl.fillKernel, 1, sizeof(cl_mem), &(ocl.inputData[1]));
 	clSetKernelArg(ocl.fillKernel, 2, sizeof(cl_mem), &ocl.voxelData);
 	clSetKernelArg(ocl.fillKernel, 4, sizeof(cl_mem), &normalLookup);
 
 	cl_int4 size;
-	memcpy(size.s, dimensions, sizeof(int) * 3);
+	memcpy(size.s, dims, sizeof(int) * 3);
 
-	float zDist = mesh->SubMeshes[0].Max[2] - mesh->SubMeshes[0].Min[2];
-	float increment = zDist / dimensions[2];
-	zDist = - increment;
+	float zDist;
+	int numSlices;
+	float increment;
+
+	float xMax, xMin, yMax, yMin;
+
+	if (octant < 0)
+	{
+		zDist = mesh->SubMeshes[0].Max[2] - mesh->SubMeshes[0].Min[2];
+		numSlices = dimensions[2];
+		increment = zDist / numSlices;
+		zDist = - increment;
+		xMax = mesh->SubMeshes[0].Max[0];
+		xMin = mesh->SubMeshes[0].Min[0];
+		yMax = mesh->SubMeshes[0].Max[1];
+		yMin = mesh->SubMeshes[0].Min[1];
+	}
+	else
+	{
+		numSlices = dimensions[2] / 2;		
+		zDist = (mesh->SubMeshes[0].Max[2] - mesh->SubMeshes[0].Min[2]) / 2.0f;
+		increment = zDist / numSlices;
+		if (octant & 4)
+			zDist = (zDist / 2.0f);
+		else
+			zDist = 0.0f;
+		zDist -= increment;
+
+		if (octant & 1)
+		{
+			xMin = (mesh->SubMeshes[0].Max[0] - mesh->SubMeshes[0].Max[0]) / 2.0f;			
+			xMax = mesh->SubMeshes[0].Max[0];
+		}
+		else
+		{
+			xMin = mesh->SubMeshes[0].Min[0];
+			xMax = (mesh->SubMeshes[0].Max[0] - mesh->SubMeshes[0].Min[0]) / 2.0f;
+		}
+
+		if (octant & 2)
+		{
+			yMin = (mesh->SubMeshes[0].Max[1] - mesh->SubMeshes[0].Min[1]) / 2.0f;
+			yMax = mesh->SubMeshes[0].Max[1];
+		}
+		else
+		{
+			yMin = mesh->SubMeshes[0].Min[1];
+			yMax = (mesh->SubMeshes[0].Max[1] - mesh->SubMeshes[0].Min[1]) / 2.0f;
+		}
+	}
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
-	for (int i = 0; i < dimensions[2]; ++i)
+	for (int i = 0; i < numSlices; ++i)
 	{
 		fbo->Bind();
 
@@ -284,13 +232,10 @@ void VoxelBuilder::BuildGL(StaticMesh* mesh, int* dimensions, Shader* meshRender
 
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		float camHeight = mesh->SubMeshes[0].Max[1] - mesh->SubMeshes[0].Min[1];
-		camHeight /= 2.0f;
-
 		float camDist = mesh->SubMeshes[0].Max[2] - mesh->SubMeshes[0].Min[2];
 		camDist /= 2.0f;
 
-		Mat4 ortho = Orthographic(mesh->SubMeshes[0].Min[0], mesh->SubMeshes[0].Max[0], mesh->SubMeshes[0].Min[1], mesh->SubMeshes[0].Max[1], zDist, zDist + (increment * 5.0f));
+		Mat4 ortho = Orthographic(xMin, xMax, yMin, yMax, zDist, zDist + (increment * 5.0f));
 
 		meshRenderer->Use();
 		meshRenderer->Uniforms["World"].SetValue(Mat4(vl_one));
@@ -315,6 +260,12 @@ void VoxelBuilder::BuildGL(StaticMesh* mesh, int* dimensions, Shader* meshRender
 			debugDrawShader->Uniforms["baseTex"].SetValue(0);
 			QuadDrawer::DrawQuad(Vec2(-1.0, -1.0), Vec2(1.0, 1.0), Vec2(1.0, 1.0));
 		}
+
+#ifdef INTEL
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, colourData);
+		glBindTexture(GL_TEXTURE_2D, fbo->GetTextureID("normal"));
+		glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, normalData);
+#endif
 
 		glFinish();
 		glfwSwapBuffers();
@@ -323,8 +274,8 @@ void VoxelBuilder::BuildGL(StaticMesh* mesh, int* dimensions, Shader* meshRender
 		clEnqueueAcquireGLObjects(ocl.queue, 2, ocl.inputData, 0, NULL, NULL);
 
 		size_t workSize[2];
-		workSize[0] = dimensions[0];
-		workSize[1] = dimensions[1];
+		workSize[0] = dims[0];
+		workSize[1] = dims[1];
 
 		clEnqueueNDRangeKernel(ocl.queue, ocl.fillKernel, 2, NULL, workSize, NULL, 0, NULL, NULL);
 		clEnqueueReleaseGLObjects(ocl.queue, 2, ocl.inputData, 0, NULL, NULL);			
@@ -344,7 +295,7 @@ void VoxelBuilder::BuildGL(StaticMesh* mesh, int* dimensions, Shader* meshRender
 	delete fbo;
 	
 	maxMips = 1;
-	int counter = dimensions[0];
+	int counter = dims[0];
 	octInfo.numLeafVoxels = 0;
 	while(counter >= 1)
 	{

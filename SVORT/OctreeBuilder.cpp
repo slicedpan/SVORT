@@ -36,7 +36,6 @@ void OctreeBuilder::Init(cl_context context, cl_device_id device)
 	ocl.queue = clCreateCommandQueue(ocl.context, device, 0, &resultCL);
 	CLGLError(resultCL);
 	CreateKernel();
-
 }
 
 void OctreeBuilder::Build(cl_mem inputBuf, int* dimensions, cl_mem octreeInfo, cl_mem voxInfo)
@@ -51,8 +50,8 @@ void OctreeBuilder::Build(cl_mem inputBuf, int* dimensions, cl_mem octreeInfo, c
 	cl_int resultCL;
 	printf("Creating octree data buffer, size %dKB...\n", (sizeof(CLBlock) * vi.numLeafVoxels) / 1024);
 #ifdef INTEL
-	octDataPtr = malloc(sizeof(CLBlock) * vi.numLeafVoxels);
-	ocl.octData = clCreateBuffer(ocl.context, CL_MEM_USE_HOST_PTR, sizeof(CLBlock) * vi.numLeafVoxels, octDataPtr, &resultCL);
+	octDataPtr = malloc(sizeof(CLBlock) * vi.numLeafVoxels * 2);
+	ocl.octData = clCreateBuffer(ocl.context, CL_MEM_USE_HOST_PTR, sizeof(CLBlock) * vi.numLeafVoxels * 2, octDataPtr, &resultCL);
 #else
 	ocl.octData = clCreateBuffer(ocl.context, CL_MEM_READ_WRITE, sizeof(CLBlock) * vi.numLeafVoxels, NULL, &resultCL);
 #endif

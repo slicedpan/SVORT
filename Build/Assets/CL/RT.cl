@@ -20,7 +20,7 @@ __kernel void VolRT(__write_only image2d_t bmp, __global uint2* input, __constan
 	
 	int2 coords = (int2)(x, y);		
 
-	if (x == 384 && y == 384)
+	if (x == (w + 1) / 2 && y == (h + 1) / 2)
 	{
 		write_imagef(bmp, coords, (float4)(1.0, 0.0, 0.0, 1.0));
 		return;

@@ -26,12 +26,14 @@ __kernel void DrawOctree(__write_only image2d_t output, __global Block* input, u
 	uint2 pixSize = dimensions;
 		
 	uint childOffset = 0;
+	bool valid = true;
 	for (int i = 0; i < mipLevel; ++i)
 	{		
 		pixSize /= 2;
 		uint octant = getAndReduceOctant(&coords, &size);
 		if (!getValid(current, octant))
 		{	
+			valid = false;
 			i = 16;			
 		}
 	
@@ -44,7 +46,7 @@ __kernel void DrawOctree(__write_only image2d_t output, __global Block* input, u
 	
 	//colour.x = 1.0;	
 	
-	if (colour.w == 0.0f)
+	if (!valid)
 		colour.x = 1.0f;
 
 	if ((screenCoords.x % pixSize.x) == 0 || (screenCoords.y % pixSize.y) == 0)
